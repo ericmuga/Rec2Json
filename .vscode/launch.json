@@ -3,21 +3,75 @@
     "configurations": [
 
         {
-            "name": "Your own server",
+            "name": "fcl-dev20",
             "request": "launch",
             "type": "al",
             "environmentType": "OnPrem",
-            "server": "http://100.100.2.23",
-            "serverInstance": "BCTEST",
+            "server": "http://100.100.4.87",
+            "serverInstance": "BC140",
+            "port": 7049,
             "authentication": "Windows",
-            // "startupObjectId": 51519950,
             "startupObjectId": 43,
             "startupObjectType": "Page",
             "breakOnError": true,
-            "launchBrowser": true,
+            "launchBrowser": false,
             "enableLongRunningSqlStatements": true,
             "enableSqlInformationDebugger": true,
             "tenant": "default"
         }
-    ]
+    ,
+         {
+            "name": "BCSALES",
+            "request": "launch",
+            "type": "al",
+            "environmentType": "OnPrem",
+            "server": "http://100.100.2.54",
+            "serverInstance": "BCSALES",
+            "authentication": "Windows",
+            "port": 8059,
+            "startupObjectId": 43,
+            "startupObjectType": "Page",
+            "breakOnError": true,
+            "launchBrowser": false,
+            "enableLongRunningSqlStatements": true,
+            "enableSqlInformationDebugger": true,
+            "tenant": "default"
+        },
+         {
+            "name": "MAIN",
+            "request": "launch",
+            "type": "al",
+            "environmentType": "OnPrem",
+            "server": "http://100.100.2.53",
+            "serverInstance": "BCMAIN",
+            "authentication": "Windows",
+            "port": 8049,
+            "startupObjectId": 43,
+            "startupObjectType": "Page",
+            "breakOnError": true,
+            "launchBrowser": false,
+            "enableLongRunningSqlStatements": true,
+            "enableSqlInformationDebugger": true,
+            "tenant": "default"
+        },
+
+        {
+            "name": "UPLANDS",
+            "request": "launch",
+            "type": "al",
+            "environmentType": "OnPrem",
+            "server": "http://41.215.73.166",
+            "serverInstance": "BC140",
+            "authentication": "Windows",
+            "port": 8049,
+            "startupObjectId": 43,
+            "startupObjectType": "Page",
+            "breakOnError": true,
+            "launchBrowser": false,
+            "enableLongRunningSqlStatements": true,
+            "enableSqlInformationDebugger": true,
+            "tenant": "default"
+        }
+    
+  ]
 }

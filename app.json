@@ -1,6 +1,6 @@
 {
   "id": "78dbdf4c-61b4-455a-a560-97eaca9a08b7",
-  "name": "Rec2JSON",
+  "name": "Control Unit",
   "publisher": "Default publisher",
   "version": "1.0.0.0",
   "brief": "",
@@ -16,8 +16,16 @@
   "application": "14.0.29530.0",
   "idRanges": [
     {
-      "from": 50100,
-      "to": 50149
+      "from": 51520050,
+      "to": 51520070
+    },
+    {
+      "from": 51521060,
+      "to": 51521070
+    },
+    {
+      "from": 50101,
+      "to": 50110
     }
   ],
   "showMyCode": true,
