@@ -39,6 +39,7 @@ tableextension 51520050 QRCodeExtension extends "Sales Header"
     }
 }
 
+
 ///extend sales invoice header
 tableextension 51520051 QRCodeExtensionInv extends "Sales Invoice Header"
 {
@@ -178,6 +179,41 @@ tableextension 51520054 Item extends "Item"
     }
 }
 
+
+tableextension 51520055 CustomerLedgerEntryCUInvNo extends "Cust. Ledger Entry"
+{
+    fields
+    {
+
+        field(50033; CUInvoiceNo; Text[250])
+        {
+            Caption = 'CUInvNo';
+            FieldClass = FlowField;
+            CalcFormula = lookup("Sales Invoice Header".CUInvoiceNo where("No." = field("Document No.")));
+
+        }
+    }
+}
+
+pageextension 51520063 CustomerLedgerEntryCUInvNo extends "Customer Ledger Entries"
+{
+    layout
+    {
+        // Add changes to page layout here
+
+        addafter("External Document No.")
+        {
+            field(CUInvoiceNo; CUInvoiceNo)
+            {
+                Caption = 'CU Invoice No.';
+                Editable = false;
+            }
+        }
+
+    }
+
+
+}
 pageextension 51520052 SalesInvoiceExtension extends "Sales Invoice"
 {
 

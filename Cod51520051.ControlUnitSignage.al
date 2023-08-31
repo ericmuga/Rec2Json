@@ -443,6 +443,8 @@ codeunit 51520051 "Control Unit Signage"
         end
         else begin //credit notes
                    // if StrPos(UserId, 'EMUGA') <> 0 then Message('Credit note portion');
+
+
             Checker := '';
             CNPrdSum := 0;
             VATCheck := '';
@@ -460,7 +462,12 @@ codeunit 51520051 "Control Unit Signage"
                         //first line
                         Checker := CNLines.Description;
                         if (CNLines.Type = CNLines.Type::Item) then
-                            NoChecker := CNLines."No.";
+                            NoChecker := CNLines."No."
+                        ELSE begin
+                            ItemRec.SetRange(Description, CNLines.Description);
+                            if ItemRec.FindFirst() then
+                                NoChecker := ItemRec."No.";
+                        end;
                         VATCheck := CNLines."VAT Identifier";
                         CNPrdSum += CNLines."Amount Including VAT";
 
@@ -468,6 +475,13 @@ codeunit 51520051 "Control Unit Signage"
                     else begin
                         if Checker = CNLines.Description then begin
                             CNPrdSum += CNLines."Amount Including VAT";
+                            if (CNLines.Type = CNLines.Type::Item) then
+                                NoChecker := CNLines."No."
+                            ELSE begin
+                                ItemRec.SetRange(Description, CNLines.Description);
+                                if ItemRec.FindFirst() then
+                                    NoChecker := ItemRec."No.";
+                            end;
                         end
                         else begin
                             //push the previous line
@@ -500,12 +514,19 @@ codeunit 51520051 "Control Unit Signage"
 
                     Checker := CNLines.Description;
                     if (CNLines.Type = CNLines.Type::Item) then
-                        NoChecker := CNLines."No.";
+                        NoChecker := CNLines."No."
+                    ELSE begin
+                        ItemRec.SetRange(Description, CNLines.Description);
+                        if ItemRec.FindFirst() then
+                            NoChecker := ItemRec."No.";
+                    end;
+
                     VATCheck := CNLines."VAT Identifier";
 
                     if (CNLines.Count - counter = 0) then begin
                         Items.Add('totalAmount', ROUND(CNPrdSum - 0.10, 0.000001, '<'));
                         Items.Add('name', CopyStr(Checker, 1, 42));
+
                         ItemRec.Reset();
                         ItemRec.SetRange("No.", NoChecker);
                         if ItemRec.FindFirst() then

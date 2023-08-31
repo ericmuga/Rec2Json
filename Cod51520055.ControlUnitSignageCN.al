@@ -357,17 +357,17 @@ codeunit 51520055 "Control Unit Signage CN"
                             INVSumProdLines += INVLines."Amount Including VAT";
                         until INVLines.Next() = 0;
 
-                    if CNSumProdLine > INVSumProdLines then begin
-                        CNLines.RESet;
-                        CNLines.SetRange("Document No.", Lines."Document No.");
-                        CNLines.SetRange(Description, Lines.Description);
-                        CNSumProdLine := 0;
-                        if CNLines.Find('-') then
-                            repeat
-                                CNLines.Validate("Unit Price", CNLines."Unit Price" - 0.01);
-                                CNLines.Modify();
-                            until CNLines.Next() = 0;
-                    end;
+                    // if CNSumProdLine > INVSumProdLines then begin
+                    //     CNLines.RESet;
+                    //     CNLines.SetRange("Document No.", Lines."Document No.");
+                    //     CNLines.SetRange(Description, Lines.Description);
+                    //     CNSumProdLine := 0;
+                    //     if CNLines.Find('-') then
+                    //         repeat
+                    //             CNLines.Validate("Unit Price", CNLines."Unit Price" - 0.01);
+                    //             CNLines.Modify();
+                    //         until CNLines.Next() = 0;
+                    // end;
 
 
                     //
