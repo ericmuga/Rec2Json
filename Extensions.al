@@ -195,6 +195,25 @@ tableextension 51520055 CustomerLedgerEntryCUInvNo extends "Cust. Ledger Entry"
     }
 }
 
+pageextension 51520064 ApplyCustEntriesCUInvNo extends "Apply Customer Entries"
+{
+    layout
+    {
+
+        addafter("Document No.")
+        {
+            field(CUInvoiceNo; CUInvoiceNo)
+            {
+                Caption = 'CU Invoice No.';
+                Editable = false;
+            }
+
+        }
+
+    }
+
+}
+
 pageextension 51520063 CustomerLedgerEntryCUInvNo extends "Customer Ledger Entries"
 {
     layout
