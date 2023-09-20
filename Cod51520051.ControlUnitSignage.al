@@ -126,6 +126,7 @@ codeunit 51520051 "Control Unit Signage"
             Request.SetRequestUri(Path);
 
             //check if there's a successful response already in the signage logs
+            successfulQR := '';
             successfulQR := checkSuccessfulSignage(Rec);
             if (successfulQR <> '') then begin
 
@@ -137,7 +138,6 @@ codeunit 51520051 "Control Unit Signage"
                     //upload signature
                     Rec.QRCode.Import(Setup.QRCodeStorage + successfulQR + '.png');
                     Rec.CUInvoiceNo := successfulQR;
-
                     DevLogs.Reset();
                     DevLogs.SetRange("Document No.", Rec."No.");
                     DevLogs.SetFilter(Response, '*' + successfulQR + '*');
@@ -147,94 +147,95 @@ codeunit 51520051 "Control Unit Signage"
                     end;
 
                     Rec.Modify();
+                    Commit();
                     exit;
                 end;
-
-                //post the document
-
-
+            end;
+            //post the document
 
 
 
-                // IF ("Document Type" = Rec."Document Type"::"Credit Memo") then
-                if StrPos(UserId, 'EMUGA') <> 0 then begin
-                    if NOT (Confirm(Format(TextContent))) then exit;
-                end;
-                if Client.Send(Request, Response) then begin
 
-                    if Rec."Document Type" = rec."Document Type"::"Credit Memo" then
-                        LogEntryNo := LogCU.InsertLogs(resolveControlUnitIP(Rec, 2),
-                                         Logs."Document Type"::CreditNote,
-                                         Rec."No.",
-                                         CopyStr(TextContent, 1, 2048),
-                                         '',
-                                         false,
-                                         CurrentDateTime,
-                                         0DT)
-                    else
-                        LogEntryNo := LogCU.InsertLogs(resolveControlUnitIP(Rec, 2),
-                                         Logs."Document Type"::Invoice,
-                                         Rec."No.",
-                                         CopyStr(TextContent, 1, 2048),
-                                         '',
-                                         false,
-                                         CurrentDateTime,
-                                         0DT);
+
+            // IF ("Document Type" = Rec."Document Type"::"Credit Memo") then
+            if StrPos(UserId, 'EMUGA') <> 0 then begin
+                if NOT (Confirm(Format(TextContent))) then exit;
+            end;
+            if Client.Send(Request, Response) then begin
+
+                if Rec."Document Type" = rec."Document Type"::"Credit Memo" then
+                    LogEntryNo := LogCU.InsertLogs(resolveControlUnitIP(Rec, 2),
+                                     Logs."Document Type"::CreditNote,
+                                     Rec."No.",
+                                     CopyStr(TextContent, 1, 2048),
+                                     '',
+                                     false,
+                                     CurrentDateTime,
+                                     0DT)
+                else
+                    LogEntryNo := LogCU.InsertLogs(resolveControlUnitIP(Rec, 2),
+                                     Logs."Document Type"::Invoice,
+                                     Rec."No.",
+                                     CopyStr(TextContent, 1, 2048),
+                                     '',
+                                     false,
+                                     CurrentDateTime,
+                                     0DT);
+                Commit();
+
+
+
+                if Response.IsSuccessStatusCode() then begin
+                    Response.Content().ReadAs(ResponseText);
+
+                    logs.GET(LogEntryNo);
+                    logs.Response := ResponseText;
+                    logs."Response DateTime" := CurrentDateTime;
+                    logs.Modify();
                     Commit();
 
 
 
-                    if Response.IsSuccessStatusCode() then begin
-                        Response.Content().ReadAs(ResponseText);
+                    clear(J);
+                    Clear(Rec.CUInvoiceNo);
+                    J.ReadFrom(ResponseText);
+                    // Message(Format(J));
 
-                        logs.GET(LogEntryNo);
-                        logs.Response := ResponseText;
-                        logs."Response DateTime" := CurrentDateTime;
-                        logs.Modify();
-                        Commit();
-
-
-
-                        clear(J);
-                        Clear(Rec.CUInvoiceNo);
-                        J.ReadFrom(ResponseText);
-                        // Message(Format(J));
-
-                        Rec.CUInvoiceNo := GetJSONValue(J, 'mtn');
-                        Rec.CUNo := GetJSONValue(J, 'msn');
-                        Rec.SignTime := GetJSONValue(J, 'DateTime');
-                        Rec.Modify();
-                        QR := Rec.CUInvoiceNo + '.png';
-                        if (GenerateQRCode(Setup.ImageServiceUri, GetJSONValue(J, 'mtn'))) = 'Success' then begin
-                            Rec.CalcFields(QRCode);
-                            Rec.QRCode.Import(Setup.QRCodeStorage + QR);
-                        end
-                        else
-                            Error('An error was encountered in generating the QR Code image');
-
-                    end
-                    else begin
-
-                        logs.GET(LogEntryNo);
-                        logs.Response := Format(Response.HttpStatusCode);
-                        logs."Response DateTime" := CurrentDateTime;
-                        logs.Error := true;
-                        logs.Modify();
-                        Commit();
-
-
-                        Rec.CUInvoiceNo := '';
-                        Rec.CUNo := '';
-                        Rec.SignTime := '';
-                        Response.Content().ReadAs(ResponseText);
-                        J.ReadFrom(ResponseText);
-                        Message(Format(J));
-                        Error('Request failed because of %1 ', Response.ReasonPhrase());
-                    end;
-
+                    Rec.CUInvoiceNo := GetJSONValue(J, 'mtn');
+                    Rec.CUNo := GetJSONValue(J, 'msn');
+                    Rec.SignTime := GetJSONValue(J, 'DateTime');
                     Rec.Modify();
+                    QR := Rec.CUInvoiceNo + '.png';
+                    if (GenerateQRCode(Setup.ImageServiceUri, GetJSONValue(J, 'mtn'))) = 'Success' then begin
+                        Rec.CalcFields(QRCode);
+                        Rec.QRCode.Import(Setup.QRCodeStorage + QR);
+                    end
+                    else
+                        Error('An error was encountered in generating the QR Code image');
 
+                end
+                else begin
+
+                    logs.GET(LogEntryNo);
+                    logs.Response := Format(Response.HttpStatusCode);
+                    logs."Response DateTime" := CurrentDateTime;
+                    logs.Error := true;
+                    logs.Modify();
+                    Commit();
+
+
+                    Rec.CUInvoiceNo := '';
+                    Rec.CUNo := '';
+                    Rec.SignTime := '';
+                    Response.Content().ReadAs(ResponseText);
+                    J.ReadFrom(ResponseText);
+                    Message(Format(J));
+                    Error('Request failed because of %1 ', Response.ReasonPhrase());
                 end;
+
+                Rec.Modify();
+
+
                 // exit(true);
             end;
         end;
