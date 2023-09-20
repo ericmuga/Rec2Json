@@ -585,7 +585,7 @@ codeunit 51520055 "Control Unit Signage CN"
         Amount := 0;
         if Lines.Find('-') then
             Repeat
-                if (Lines."No." <> '41990') and (Lines."No." <> 'B40900') and (Lines."Amount Including VAT" > 0) then begin
+                if (Lines.Description <> 'Currency Rounding') and (Lines."Amount Including VAT" > 0) then begin
 
 
                     counter += 1;

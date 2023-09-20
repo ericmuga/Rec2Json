@@ -335,7 +335,7 @@ codeunit 51520054 "Control Unit SignageINV"
                     Items.Add('hsCode', resolveHSCode(Lines));
 
 
-                if Lines."No." <> '41990' then
+                if Lines.Description <> 'Currency Rounding' then
                     JA.Add(Items);
                 Clear(Items);
             Until Lines.Next = 0;
