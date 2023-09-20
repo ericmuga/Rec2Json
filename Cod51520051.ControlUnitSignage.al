@@ -4,6 +4,9 @@ codeunit 51520051 "Control Unit Signage"
     var
         Amount: Decimal;
 
+
+
+
     procedure SignInvoices(Rec: Record "Sales Header")
     var
         Client: HttpClient;
@@ -34,6 +37,11 @@ codeunit 51520051 "Control Unit Signage"
         LogCU: Codeunit "Device Signage Logs";
         logs: Record "Device Signage Log";
         LogEntryNo: Integer;
+        successfulQR: Code[20];
+        uplQRCM: Codeunit UploadQRToCreditMemo;
+        uplQRINV: Codeunit UploadQRToInvoice;
+        DevLogs: Record "Device Signage Log";
+        JO: JsonObject;
 
 
 
@@ -72,10 +80,17 @@ codeunit 51520051 "Control Unit Signage"
 
 
             RequestObject.Add('invoiceType', 0);
+
+
             if Rec."Document Type" In [Rec."Document Type"::Invoice, Rec."Document Type"::Order] then
                 RequestObject.Add('transactionType', 0)
-            else
+            else begin
                 RequestObject.Add('transactionType', 1);
+                validateUnpostedCreditNote(Rec);
+
+
+            end;
+
 
             //get relevant invoice number
 
@@ -92,7 +107,6 @@ codeunit 51520051 "Control Unit Signage"
                         RequestObject.Add('ExemptionNumber', Cust.ExemptionNo);
                 if (GetJsonTextField(GetBuyerDetails(Rec), 'pinOfBuyer') <> 'P000000000P') then
                     RequestObject.Add('buyerId', GetBuyerDetails(Rec));
-
             end
             else begin
                 IF NOT SINV.GET(Rec."Applies-to Doc. No.") then Error('The applied Invoice No. does not exist');
@@ -111,91 +125,212 @@ codeunit 51520051 "Control Unit Signage"
 
             Request.SetRequestUri(Path);
 
+            //check if there's a successful response already in the signage logs
+            successfulQR := checkSuccessfulSignage(Rec);
+            if (successfulQR <> '') then begin
 
+                //generate QR code
+                Setup.FindFirst();
 
+                if (GenerateQRCode(Setup.ImageServiceUri, successfulQR)) = 'Success' then begin
+                    Rec.CalcFields(QRCode);
+                    //upload signature
+                    Rec.QRCode.Import(Setup.QRCodeStorage + successfulQR + '.png');
+                    Rec.CUInvoiceNo := successfulQR;
 
-            // IF ("Document Type" = Rec."Document Type"::"Credit Memo") then
-            if StrPos(UserId, 'EMUGA') <> 0 then begin
-                if NOT (Confirm(Format(TextContent))) then exit;
-            end;
-            if Client.Send(Request, Response) then begin
+                    DevLogs.Reset();
+                    DevLogs.SetRange("Document No.", Rec."No.");
+                    DevLogs.SetFilter(Response, '*' + successfulQR + '*');
+                    if DevLogs.FindFirst() then begin
+                        JO.ReadFrom(DevLogs.Response);
+                        Rec.SignTime := GetJSONValue(JO, 'DateTime');
+                    end;
 
-                if Rec."Document Type" = rec."Document Type"::"Credit Memo" then
-                    LogEntryNo := LogCU.InsertLogs(resolveControlUnitIP(Rec, 2),
-                                     Logs."Document Type"::CreditNote,
-                                     Rec."No.",
-                                     CopyStr(TextContent, 1, 2048),
-                                     '',
-                                     false,
-                                     CurrentDateTime,
-                                     0DT)
-                else
-                    LogEntryNo := LogCU.InsertLogs(resolveControlUnitIP(Rec, 2),
-                                     Logs."Document Type"::Invoice,
-                                     Rec."No.",
-                                     CopyStr(TextContent, 1, 2048),
-                                     '',
-                                     false,
-                                     CurrentDateTime,
-                                     0DT);
-                Commit();
-
-
-
-                if Response.IsSuccessStatusCode() then begin
-                    Response.Content().ReadAs(ResponseText);
-
-                    logs.GET(LogEntryNo);
-                    logs.Response := ResponseText;
-                    logs."Response DateTime" := CurrentDateTime;
-                    logs.Modify();
-                    Commit();
-
-
-
-                    clear(J);
-                    Clear(Rec.CUInvoiceNo);
-                    J.ReadFrom(ResponseText);
-                    // Message(Format(J));
-
-                    Rec.CUInvoiceNo := GetJSONValue(J, 'mtn');
-                    Rec.CUNo := GetJSONValue(J, 'msn');
-                    Rec.SignTime := GetJSONValue(J, 'DateTime');
                     Rec.Modify();
-                    QR := Rec.CUInvoiceNo + '.png';
-                    if (GenerateQRCode(Setup.ImageServiceUri, GetJSONValue(J, 'mtn'))) = 'Success' then begin
-                        Rec.CalcFields(QRCode);
-                        Rec.QRCode.Import(Setup.QRCodeStorage + QR);
-                    end
-                    else
-                        Error('An error was encountered in generating the QR Code image');
-
-                end
-                else begin
-
-                    logs.GET(LogEntryNo);
-                    logs.Response := Format(Response.HttpStatusCode);
-                    logs."Response DateTime" := CurrentDateTime;
-                    logs.Error := true;
-                    logs.Modify();
-                    Commit();
-
-
-                    Rec.CUInvoiceNo := '';
-                    Rec.CUNo := '';
-                    Rec.SignTime := '';
-                    Response.Content().ReadAs(ResponseText);
-                    J.ReadFrom(ResponseText);
-                    Message(Format(J));
-                    Error('Request failed because of %1 ', Response.ReasonPhrase());
+                    exit;
                 end;
 
-                Rec.Modify();
+                //post the document
 
+
+
+
+
+                // IF ("Document Type" = Rec."Document Type"::"Credit Memo") then
+                if StrPos(UserId, 'EMUGA') <> 0 then begin
+                    if NOT (Confirm(Format(TextContent))) then exit;
+                end;
+                if Client.Send(Request, Response) then begin
+
+                    if Rec."Document Type" = rec."Document Type"::"Credit Memo" then
+                        LogEntryNo := LogCU.InsertLogs(resolveControlUnitIP(Rec, 2),
+                                         Logs."Document Type"::CreditNote,
+                                         Rec."No.",
+                                         CopyStr(TextContent, 1, 2048),
+                                         '',
+                                         false,
+                                         CurrentDateTime,
+                                         0DT)
+                    else
+                        LogEntryNo := LogCU.InsertLogs(resolveControlUnitIP(Rec, 2),
+                                         Logs."Document Type"::Invoice,
+                                         Rec."No.",
+                                         CopyStr(TextContent, 1, 2048),
+                                         '',
+                                         false,
+                                         CurrentDateTime,
+                                         0DT);
+                    Commit();
+
+
+
+                    if Response.IsSuccessStatusCode() then begin
+                        Response.Content().ReadAs(ResponseText);
+
+                        logs.GET(LogEntryNo);
+                        logs.Response := ResponseText;
+                        logs."Response DateTime" := CurrentDateTime;
+                        logs.Modify();
+                        Commit();
+
+
+
+                        clear(J);
+                        Clear(Rec.CUInvoiceNo);
+                        J.ReadFrom(ResponseText);
+                        // Message(Format(J));
+
+                        Rec.CUInvoiceNo := GetJSONValue(J, 'mtn');
+                        Rec.CUNo := GetJSONValue(J, 'msn');
+                        Rec.SignTime := GetJSONValue(J, 'DateTime');
+                        Rec.Modify();
+                        QR := Rec.CUInvoiceNo + '.png';
+                        if (GenerateQRCode(Setup.ImageServiceUri, GetJSONValue(J, 'mtn'))) = 'Success' then begin
+                            Rec.CalcFields(QRCode);
+                            Rec.QRCode.Import(Setup.QRCodeStorage + QR);
+                        end
+                        else
+                            Error('An error was encountered in generating the QR Code image');
+
+                    end
+                    else begin
+
+                        logs.GET(LogEntryNo);
+                        logs.Response := Format(Response.HttpStatusCode);
+                        logs."Response DateTime" := CurrentDateTime;
+                        logs.Error := true;
+                        logs.Modify();
+                        Commit();
+
+
+                        Rec.CUInvoiceNo := '';
+                        Rec.CUNo := '';
+                        Rec.SignTime := '';
+                        Response.Content().ReadAs(ResponseText);
+                        J.ReadFrom(ResponseText);
+                        Message(Format(J));
+                        Error('Request failed because of %1 ', Response.ReasonPhrase());
+                    end;
+
+                    Rec.Modify();
+
+                end;
+                // exit(true);
             end;
-            // exit(true);
         end;
     end;
+
+    procedure checkSuccessfulSignage(Rec: Record "Sales Header"): Code[30];
+    var
+        deviceLogs: Record "Device Signage Log";
+        JO: JsonObject;
+    begin
+        deviceLogs.Reset();
+        deviceLogs.SetRange("Document No.", Rec."No.");
+        deviceLogs.SetFilter(Response, '*' + 'DateTime' + '*');
+        if deviceLogs.FindFirst() then begin
+            JO.ReadFrom(deviceLogs.Response);
+            exit(GetJSONValue(JO, 'mtn'));
+        end
+        else
+            exit('');
+
+    end;
+
+
+    procedure validateUnpostedCreditNote(Rec: Record "Sales Header")
+    var
+        SINVL: Record "Sales Invoice Line";
+        SL: Record "Sales Line";
+        AppliedCreditNotes: Code[250];
+        SCMH: Record "Sales Cr.Memo Header";
+        SCML: Record "Sales Cr.Memo Line";
+        SUMCNLines: Decimal;
+        SLAmt: Decimal;
+    begin
+        //check if all items exist in the applied invoice
+        if (Rec."Document Type" = Rec."Document Type"::"Credit Memo") then begin
+
+
+            SL.Reset();
+            SL.SetRange("Document Type", SL."Document Type"::"Credit Memo");
+            SL.SetRange("Document No.", Rec."No.");
+            SL.SetFilter("Description", '<>%1', 'Currency Rounding');
+            SL.SetFilter(Quantity, '>%1', 0);
+            if SL.Find('-') then
+                repeat
+                    SINVL.Reset();
+                    SINVL.SetRange("Document No.", Rec."Applies-to Doc. No.");
+                    SINVL.SetRange(Description, SL.Description);
+                    if SINVL.Find('-') then begin
+                        if SINVL."Amount Including VAT" < SL."Amount Including VAT" then
+                            error('Invoice item line amount: ' + SINVL.Description + ' is lower than the credit line amount');
+
+                        if SINVL."VAT Identifier" <> SL."VAT Identifier" then
+                            error('Invoice item line VAT Identifier: ' + SINVL.Description + ' is different from the Cr. Memo VAT Identifier');
+                    end
+                    else
+                        error('Item: ' + SL.Description + ' was not found on the applied invoice: ' + SINVL."Document No.");
+                until SL.Next() = 0;
+
+            //check over credit
+            //get all credit notes that are applied to the invoice
+            AppliedCreditNotes := '';
+            SCMH.Reset();
+            SCMH.SetRange("Applies-to Doc. No.", Rec."Applies-to Doc. No.");
+            if SCMH.Find('-') then
+                repeat
+                    AppliedCreditNotes += SCMH."No." + '|';
+                until SCMH.Next() = 0;
+
+            if StrPos(AppliedCreditNotes, '|') = StrLen(AppliedCreditNotes) then
+                AppliedCreditNotes := CopyStr(AppliedCreditNotes, 1, StrLen(AppliedCreditNotes) - 1);
+
+            if AppliedCreditNotes <> '' then begin
+                SL.Reset();
+                SL.SetRange("Document Type", SL."Document Type"::"Credit Memo");
+                SL.SetRange("Document No.", Rec."No.");
+                SL.SetFilter("Description", '<>%1', 'Currency Rounding');
+                SL.SetFilter(Quantity, '>%1', 0);
+                if SL.Find('-') then
+                    repeat
+                        SLAmt := SL."Amount Including VAT";
+                        SCML.Reset();
+                        SCML.SetFilter("Document No.", AppliedCreditNotes);
+                        SCML.SetRange(Description, SL.Description);
+                        if SCML.Find('-') then
+                            repeat
+                                SLAmt -= SCML."Amount Including VAT";
+                            until SCML.Next() = 0;
+                        if SLAmt < 0 then error('An over-credit of item : ' + SL.Description + 'was attempted. Check documents:' + AppliedCreditNotes);
+                    until SL.Next() = 0;
+            end;
+
+        end;
+
+    end;
+
+
 
     procedure GenerateQRCode(Uri: Text; CUInvNo: Text): Text;
     var
@@ -429,10 +564,10 @@ codeunit 51520051 "Control Unit Signage"
                     UP := Round((Lines."Amount Including VAT" / Lines.Quantity), 0.000001);
                     Amount += ROUND(UP, 0.000001) * Lines.Quantity;
                     Items.Add('unitPrice', UP);
-                    if (resolveHSCode(Lines."No.", Lines."VAT Identifier") = '') then
+                    if (resolveHSCode(Lines) = '') then
                         hs := ''
                     else
-                        hs := resolveHSCode(Lines.Description, Lines."VAT Identifier");
+                        hs := resolveHSCode(Lines);
 
                     if hs <> '' then
                         Items.Add('hsCode', hs);
@@ -489,13 +624,7 @@ codeunit 51520051 "Control Unit Signage"
                             Items.Add('totalAmount', ROUND(CNPrdSum - 0.10, 0.000001, '<'));
                             Items.Add('name', CopyStr(Checker, 1, 42));
 
-                            ItemRec.Reset();
-                            ItemRec.SetRange("No.", NoChecker);
-
-                            if ItemRec.FindFirst() then
-                                hs := resolveHSCode(ItemRec."No.", VATCheck)
-                            else
-                                hs := resolveHSCode(Checker, VATCheck);
+                            hs := resolveHSCode(CNLines);
 
                             if hs <> '' then Items.Add('hsCode', hs);
                             JA.Add(Items);
@@ -527,12 +656,7 @@ codeunit 51520051 "Control Unit Signage"
                         Items.Add('totalAmount', ROUND(CNPrdSum - 0.10, 0.000001, '<'));
                         Items.Add('name', CopyStr(Checker, 1, 42));
 
-                        ItemRec.Reset();
-                        ItemRec.SetRange("No.", NoChecker);
-                        if ItemRec.FindFirst() then
-                            hs := resolveHSCode(ItemRec."No.", VATCheck)
-                        else
-                            hs := resolveHSCode(Checker, VATCheck);
+                        hs := resolveHSCode(CNLines);
                         if hs <> '' then
                             Items.Add('hsCode', hs);
 
@@ -544,66 +668,39 @@ codeunit 51520051 "Control Unit Signage"
 
                 until CNLines.Next() = 0;
 
-            /*
 
-               CrNoteQuery.SetRange(Document_No_, Rec."No.");
-               CrNoteQuery.Open();
-               while CrNoteQuery.Read() do begin
-                   // if StrPos(UserId, 'EMUGA') <> 0 then Message(CrNoteQuery.No_);
-                   INVQuery.SetRange(Document_No_, Rec."Applies-to Doc. No.");
-                   INVQuery.SetRange(Description, CrNoteQuery.Description);
-                   INVQuery.Open();
-                   if (INVQuery.Read()) and (CrNoteQuery.Amount_Including_VAT > 0) then begin
-                       // if UserId = 'EMUGA' then Message(CrNoteQuery.No_);
-                       // if StrPos(UserId, 'EMUGA') <> 0 then Message('item found in invoice');
-                       if (CrNoteQuery.Amount_Including_VAT <= INVQuery.Amount_Including_VAT) then
-                           Items.Add('totalAmount', ROUND(CrNoteQuery.Amount_Including_VAT - 0.01, 0.000001, '<'))
-                       else
-                           Items.Add('totalAmount', ROUND(CrNoteQuery.Amount_Including_VAT - 0.10, 0.000001, '<'));
-
-                       Items.Add('name', CopyStr(CrNoteQuery.Description, 1, 42));
-
-                       IF NOT ItemRec.Get(CrNoteQuery.No_) then begin
-                           ItemRec.SetRange(Description, CrNoteQuery.Description);
-                           if ItemRec.FindFirst() then;
-                       end;
-
-
-                       hs := resolveHSCode(ItemRec."No.", CrNoteQuery.VAT_Identifier);
-                       if hs <> '' then
-                           Items.Add('hsCode', resolveHSCode(ItemRec."No.", CrNoteQuery.VAT_Identifier));
-
-                       JA.Add(Items);
-                       Clear(Items);
-
-                   end;
-                   INVQuery.Close();
-                   Clear(INVQuery);
-               end;
-               CrNoteQuery.Close();
-               Clear(CrNoteQuery);
-           end;
-           */
         end;
         exit(JA);
     end;
 
 
-    local procedure resolveHSCode(ItemNo: Code[50]; VATId: Text): Code[20]
+    local procedure resolveHSCode(Rec: Record "Sales Line"): Code[20]
     var
         HSCodes: Record "HS Codes";
         HSCode: Code[20];
+        ItemRec: Record Item;
     begin
         // HSCode := '';
-        HSCodes.Reset();
-        HSCodes.SetRange("Item No.", CopyStr(ItemNo, 1, 20));
-        HSCodes.SetRange("VAT Identifier", VATId);
-        if HSCodes.FindFirst() then
-            exit(HSCodes.HSCode)
-        else
-            exit('');
+
+        if (Rec.Description <> 'Currency Rounding') then begin
+            HSCodes.Reset();
+            if (Rec.Type = Rec.Type::Item) then
+                HSCodes.SetRange("Item No.", Rec."No.")
+            else begin
+                ItemRec.Reset();
+                ItemRec.SetRange(Description, Rec.Description);
+                if ItemRec.FindFirst() then
+                    HSCodes.SetRange("Item No.", ItemRec."No.");
+            end;
+            HSCodes.SetRange("VAT Identifier", Rec."VAT Identifier");
+            if HSCodes.FindFirst() then
+                exit(HSCodes.HSCode)
+            else
+                exit('');
+        end;
 
     end;
+
 
     procedure GetLinesMember(): JsonArray
     var

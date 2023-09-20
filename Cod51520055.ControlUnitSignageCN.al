@@ -39,6 +39,9 @@ codeunit 51520055 "Control Unit Signage CN"
         LogCU: Codeunit "Device Signage Logs";
         logs: Record "Device Signage Log";
         LogEntryNo: Integer;
+        successfulQR: Code[20];
+        DevLogs: Record "Device Signage Log";
+        JO: JsonObject;
 
 
 
@@ -47,6 +50,36 @@ codeunit 51520055 "Control Unit Signage CN"
 
     begin
         with Rec do begin
+
+            //check if lines and amount do not exceed invoice 
+            validatepostedCreditNote(Rec);
+
+
+            successfulQR := checkSuccessfulSignage(Rec);
+            if (successfulQR <> '') then begin
+
+                //generate QR code
+                Setup.FindFirst();
+
+                if (GenerateQRCode(Setup.ImageServiceUri, successfulQR)) = 'Success' then begin
+                    Rec.CalcFields(QRCode);
+                    //upload signature
+                    Rec.QRCode.Import(Setup.QRCodeStorage + successfulQR + '.png');
+                    Rec.CUInvoiceNo := successfulQR;
+
+                    DevLogs.Reset();
+                    DevLogs.SetRange("Document No.", Rec."No.");
+                    DevLogs.SetFilter(Response, '*' + successfulQR + '*');
+                    if DevLogs.FindFirst() then begin
+                        JO.ReadFrom(DevLogs.Response);
+                        Rec.SignTime := GetJSONValue(JO, 'DateTime');
+                    end;
+
+                    Rec.Modify();
+                    exit;
+                end;
+            end;
+
             Rec.CUInvoiceNo := '';
             Rec.CUNo := '';
             Rec.SignTime := '';
@@ -59,11 +92,12 @@ codeunit 51520055 "Control Unit Signage CN"
             end;
 
             Terminal := 'invoices';
-            CashierName := CopyStr(UserId, 15, StrLen(UserId));
+            // CashierName := CopyStr(UserId, 15, StrLen(UserId));
 
             RequestObject.Add('invoiceType', 0);
             RequestObject.Add('transactionType', 1);
-            RequestObject.Add('cashier', CashierName);
+            // RequestObject.Add('cashier', CashierName);
+            RequestObject.Add('cashier', CopyStr(UserId, StrPos(UserId, '\') + 1, StrLen(UserId)));
             RequestObject.Add('items', GetLineItems(Rec));
             IF NOT SINV.GET(Rec."Applies-to Doc. No.") then Error('The applied Invoice No. does not exist');
             RequestObject.Add('relevantNumber', SINV.CUInvoiceNo);
@@ -126,6 +160,7 @@ codeunit 51520055 "Control Unit Signage CN"
                     if (GenerateQRCode(Setup.ImageServiceUri, GetJSONValue(J, 'mtn'))) = 'Success' then begin
                         Rec.CalcFields(QRCode);
                         Rec.QRCode.Import(Setup.QRCodeStorage + GetJSONValue(J, 'mtn') + '.png');
+
                     end
                     //uploadCU.uploadCR(Rec)
                     else
@@ -157,6 +192,22 @@ codeunit 51520055 "Control Unit Signage CN"
     end;
 
 
+    procedure checkSuccessfulSignage(Rec: Record "Sales Cr.Memo Header"): Code[30];
+    var
+        deviceLogs: Record "Device Signage Log";
+        JO: JsonObject;
+    begin
+        deviceLogs.Reset();
+        deviceLogs.SetRange("Document No.", Rec."No.");
+        deviceLogs.SetFilter(Response, '*' + 'DateTime' + '*');
+        if deviceLogs.FindFirst() then begin
+            JO.ReadFrom(deviceLogs.Response);
+            exit(GetJSONValue(JO, 'mtn'));
+        end
+        else
+            exit('');
+
+    end;
 
     procedure GenerateQRCode(Uri: Text; CUInvNo: Text): Text;
     var
@@ -302,7 +353,209 @@ codeunit 51520055 "Control Unit Signage CN"
                 exit(Format(Response.HttpStatusCode));
     end;
 
+    procedure validatepostedCreditNote(Rec: Record "Sales Cr.Memo Header")
+    var
+        SINVL: Record "Sales Invoice Line";
+        SL: Record "Sales Cr.Memo Line";
+        AppliedCreditNotes: Code[250];
+        SCMH: Record "Sales Cr.Memo Header";
+        SCML: Record "Sales Cr.Memo Line";
+        SUMCNLines: Decimal;
+        SLAmt: Decimal;
+    begin
+        //check if all items exist in the applied invoice
+
+
+
+        SL.Reset();
+        SL.SetRange("Document No.", Rec."No.");
+        SL.SetFilter("Description", '<>%1', 'Currency Rounding');
+        SL.SetFilter(Quantity, '>%1', 0);
+        if SL.Find('-') then
+            repeat
+                SINVL.Reset();
+                SINVL.SetRange("Document No.", Rec."Applies-to Doc. No.");
+                SINVL.SetRange(Description, SL.Description);
+                if SINVL.Find('-') then begin
+                    if SINVL."Amount Including VAT" < SL."Amount Including VAT" then
+                        error('Invoice item line amount: ' + SINVL.Description + ' is lower than the credit line amount');
+
+                    if SINVL."VAT Identifier" <> SL."VAT Identifier" then
+                        error('Invoice item line VAT Identifier: ' + SINVL.Description + ' is different from the Cr. Memo VAT Identifier');
+                end
+                else
+                    error('Item: ' + SL.Description + ' was not found on the applied invoice: ' + SINVL."Document No.");
+            until SL.Next() = 0;
+
+        //check over credit
+        //get all credit notes that are applied to the invoice
+        AppliedCreditNotes := '';
+        SCMH.Reset();
+        SCMH.SetRange("Applies-to Doc. No.", Rec."Applies-to Doc. No.");
+        SCMH.SetFilter("No.", '<>%1', Rec."No.");
+        if SCMH.Find('-') then
+            repeat
+                AppliedCreditNotes += SCMH."No." + '|';
+            until SCMH.Next() = 0;
+
+        if StrPos(AppliedCreditNotes, '|') = StrLen(AppliedCreditNotes) then
+            AppliedCreditNotes := CopyStr(AppliedCreditNotes, 1, StrLen(AppliedCreditNotes) - 1);
+
+        if AppliedCreditNotes <> '' then begin
+            SL.Reset();
+            SL.SetRange("Document No.", Rec."No.");
+            SL.SetFilter("Description", '<>%1', 'Currency Rounding');
+            SL.SetFilter(Quantity, '>%1', 0);
+            if SL.Find('-') then
+                repeat
+                    SLAmt := SL."Amount Including VAT";
+                    SCML.Reset();
+                    SCML.SetFilter("Document No.", AppliedCreditNotes);
+                    SCML.SetRange(Description, SL.Description);
+                    if SCML.Find('-') then
+                        repeat
+                            SLAmt -= SCML."Amount Including VAT";
+                        until SCML.Next() = 0;
+                    if SLAmt < 0 then error('An over-credit of item : ' + SL.Description + 'was attempted. Check documents:' + AppliedCreditNotes);
+                until SL.Next() = 0;
+        end;
+
+    end;
+
+
+
     procedure GetLineItems(Rec: Record "Sales Cr.Memo Header"): JsonArray
+    var
+        Lines: Record "Sales Cr.Memo Line";
+        Item: Record "Item";
+        VATSetup: Record "VAT Posting Setup";
+        JA: JsonArray;
+        Items: JsonObject;
+        UP: Decimal;
+        UP2: Decimal;
+        hs: Text;
+        counter: Integer;
+        IntegerPart: Code[20];
+        DecimalPart: Code[20];
+        dec: Decimal;
+        MaxLength: Integer;
+        CNLines: Record "Sales Cr.Memo Line";
+        CNSumProdLine: Decimal;
+        INVSumProdLines: Decimal;
+        INVLines: Record "Sales Invoice Line";
+        CrNoteQuery: Query 50102;
+        INVQuery: Query 50103;
+        ItemRec: Record Item;
+        Checker: Text[50];
+        NoChecker: Code[50];
+        VATCheck: Code[10];
+        CNPrdSum: Decimal;
+    // counter: Integer;
+    begin
+        // if StrPos(UserId, 'EMUGA') <> 0 then Message('GetLineItems Called');
+        // if (Rec."Document Type" in [Rec."Document Type"::Invoice, Rec."Document Type"::Order]) then 
+
+        // begin //credit notes
+        // if StrPos(UserId, 'EMUGA') <> 0 then Message('Credit note portion');
+
+
+        Checker := '';
+        CNPrdSum := 0;
+        VATCheck := '';
+        counter := 0;
+        CNLines.Reset();
+        CNLines.SetRange("Document No.", Rec."No.");
+        // CNLines.SetRange("Document Type", Rec."Document Type");
+        CNLines.SetFilter("Amount Including VAT", '>%1', 0);
+        CNLines.SetCurrentKey("No.");
+        CNLines.SetAscending("No.", true);
+        if CNLines.Find('-') then
+            repeat
+                counter += 1;
+                if (Checker = '') then begin
+                    //first line
+                    Checker := CNLines.Description;
+                    if (CNLines.Type = CNLines.Type::Item) then
+                        NoChecker := CNLines."No."
+                    ELSE begin
+                        ItemRec.SetRange(Description, CNLines.Description);
+                        if ItemRec.FindFirst() then
+                            NoChecker := ItemRec."No.";
+                    end;
+                    VATCheck := CNLines."VAT Identifier";
+                    CNPrdSum += CNLines."Amount Including VAT";
+
+                end
+                else begin
+                    if Checker = CNLines.Description then begin
+                        CNPrdSum += CNLines."Amount Including VAT";
+                        if (CNLines.Type = CNLines.Type::Item) then
+                            NoChecker := CNLines."No."
+                        ELSE begin
+                            ItemRec.SetRange(Description, CNLines.Description);
+                            if ItemRec.FindFirst() then
+                                NoChecker := ItemRec."No.";
+                        end;
+                    end
+                    else begin
+                        //push the previous line
+
+                        Items.Add('totalAmount', ROUND(CNPrdSum - 0.10, 0.000001, '<'));
+                        Items.Add('name', CopyStr(Checker, 1, 42));
+
+                        hs := resolveHSCode(CNLines);
+
+                        if hs <> '' then Items.Add('hsCode', hs);
+                        JA.Add(Items);
+                        Clear(Items);
+
+                        //reset variables
+                        CNPrdSum := CNLines."Amount Including VAT";
+                        Checker := CNLines.Description;
+                        if (CNLines.Type = CNLines.Type::Item) then
+                            NoChecker := CNLines."No.";
+                        VATCheck := CNLines."VAT Identifier";
+                    end;
+                end;
+
+                //if first line is also last line
+
+                Checker := CNLines.Description;
+                if (CNLines.Type = CNLines.Type::Item) then
+                    NoChecker := CNLines."No."
+                ELSE begin
+                    ItemRec.SetRange(Description, CNLines.Description);
+                    if ItemRec.FindFirst() then
+                        NoChecker := ItemRec."No.";
+                end;
+
+                VATCheck := CNLines."VAT Identifier";
+
+                if (CNLines.Count - counter = 0) then begin
+                    Items.Add('totalAmount', ROUND(CNPrdSum - 0.10, 0.000001, '<'));
+                    Items.Add('name', CopyStr(Checker, 1, 42));
+
+                    hs := resolveHSCode(CNLines);
+                    if hs <> '' then
+                        Items.Add('hsCode', hs);
+
+                    JA.Add(Items);
+                    Clear(Items);
+                end;
+
+
+
+            until CNLines.Next() = 0;
+
+
+        // end;
+        exit(JA);
+    end;
+
+
+
+
+    procedure GetLineItems2(Rec: Record "Sales Cr.Memo Header"): JsonArray
     var
         Lines: Record "Sales Cr.Memo Line";
         Item: Record "Item";
@@ -357,36 +610,14 @@ codeunit 51520055 "Control Unit Signage CN"
                             INVSumProdLines += INVLines."Amount Including VAT";
                         until INVLines.Next() = 0;
 
-                    // if CNSumProdLine > INVSumProdLines then begin
-                    //     CNLines.RESet;
-                    //     CNLines.SetRange("Document No.", Lines."Document No.");
-                    //     CNLines.SetRange(Description, Lines.Description);
-                    //     CNSumProdLine := 0;
-                    //     if CNLines.Find('-') then
-                    //         repeat
-                    //             CNLines.Validate("Unit Price", CNLines."Unit Price" - 0.01);
-                    //             CNLines.Modify();
-                    //         until CNLines.Next() = 0;
-                    // end;
 
-
-                    //
-
-                    // if Lines."VAT %" <> 0 then
-                    //     UP := Lines."Unit Price" * (1 + Lines."VAT %" / 100)
-                    // else
-                    //     UP := Lines."Unit Price";
-                    //  UP := Round((Lines."Amount Including VAT" / Lines.Quantity), 0.00000001, '<');
-                    // UP2 := Round((UP * Lines.Quantity), 0.01, '<');
-                    // UP2 := Lines."Amount Including VAT";
-                    // Items.Add('totalAmount', UP);
                     Items.Add('totalAmount', (ROUND(Lines."Amount Including VAT" - 0.1, 0.0000001, '<')));
 
                     IF NOT ItemRec.Get(Lines."No.") then begin
                         ItemRec.SetRange(Description, Lines.Description);
                         if ItemRec.FindFirst() then;
                     end;
-                    hs := resolveHSCode(ItemRec."No.", Lines."VAT Identifier");
+                    hs := resolveHSCode(Lines);
                     /* 
                         if hs <> '' then
                             Items.Add('hsCode', resolveHSCode(ItemRec."No.", Lines."VAT Identifier"));
@@ -401,19 +632,33 @@ codeunit 51520055 "Control Unit Signage CN"
         exit(JA);
     end;
 
-    local procedure resolveHSCode(ItemNo: Code[20]; VATId: Text): Code[20]
+    local procedure resolveHSCode(Rec: Record "Sales Cr.Memo Line"): Code[20]
     var
         HSCodes: Record "HS Codes";
         HSCode: Code[20];
+        ItemRec: Record Item;
     begin
-        HSCode := '';
-        HSCodes.Reset();
-        HSCodes.SetRange("Item No.", ItemNo);
-        HSCodes.SetRange("VAT Identifier", VATId);
-        if HSCodes.FindFirst() then
-            exit(HSCodes.HSCode);
+        // HSCode := '';
+
+        if (Rec.Description <> 'Currency Rounding') then begin
+            HSCodes.Reset();
+            if (Rec.Type = Rec.Type::Item) then
+                HSCodes.SetRange("Item No.", Rec."No.")
+            else begin
+                ItemRec.Reset();
+                ItemRec.SetRange(Description, Rec.Description);
+                if ItemRec.FindFirst() then
+                    HSCodes.SetRange("Item No.", ItemRec."No.");
+            end;
+            HSCodes.SetRange("VAT Identifier", Rec."VAT Identifier");
+            if HSCodes.FindFirst() then
+                exit(HSCodes.HSCode)
+            else
+                exit('');
+        end;
 
     end;
+
 
     procedure GetLinesMember(): JsonArray
     var

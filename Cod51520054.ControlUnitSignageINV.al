@@ -38,6 +38,7 @@ codeunit 51520054 "Control Unit SignageINV"
 
     begin
         with Rec do begin
+
             Rec.CUInvoiceNo := '';
             Rec.CUNo := '';
             Rec.SignTime := '';
@@ -53,14 +54,15 @@ codeunit 51520054 "Control Unit SignageINV"
 
 
             Terminal := 'invoices';
-            CashierName := CopyStr(UserId, 15, StrLen(UserId));
+            // CashierName := CopyStr(UserId, 15, StrLen(UserId));
 
             RequestObject.Add('invoiceType', 0);
             RequestObject.Add('transactionType', 0);
 
             //get relevant invoice number
 
-            RequestObject.Add('cashier', CashierName);
+            // RequestObject.Add('cashier', CashierName);
+            RequestObject.Add('cashier', CopyStr(UserId, StrPos(UserId, '\') + 1, StrLen(UserId)));
             RequestObject.Add('items', GetLineItems(Rec));
 
 
@@ -328,9 +330,9 @@ codeunit 51520054 "Control Unit SignageINV"
 
                 Items.Add('unitPrice', UP);
 
-                hs := resolveHSCode(Lines."No.", Lines."VAT Identifier");
+                hs := resolveHSCode(Lines);
                 if hs <> '' then
-                    Items.Add('hsCode', resolveHSCode(Lines."No.", Lines."VAT Identifier"));
+                    Items.Add('hsCode', resolveHSCode(Lines));
 
 
                 if Lines."No." <> '41990' then
@@ -340,19 +342,33 @@ codeunit 51520054 "Control Unit SignageINV"
         exit(JA);
     end;
 
-    local procedure resolveHSCode(ItemNo: Code[20]; VATId: Text): Code[20]
+    local procedure resolveHSCode(Rec: Record "Sales Invoice Line"): Code[20]
     var
         HSCodes: Record "HS Codes";
         HSCode: Code[20];
+        ItemRec: Record Item;
     begin
-        HSCode := '';
-        HSCodes.Reset();
-        HSCodes.SetRange("Item No.", ItemNo);
-        HSCodes.SetRange("VAT Identifier", VATId);
-        if HSCodes.FindFirst() then
-            exit(HSCodes.HSCode);
+        // HSCode := '';
+
+        if (Rec.Description <> 'Currency Rounding') then begin
+            HSCodes.Reset();
+            if (Rec.Type = Rec.Type::Item) then
+                HSCodes.SetRange("Item No.", Rec."No.")
+            else begin
+                ItemRec.Reset();
+                ItemRec.SetRange(Description, Rec.Description);
+                if ItemRec.FindFirst() then
+                    HSCodes.SetRange("Item No.", ItemRec."No.");
+            end;
+            HSCodes.SetRange("VAT Identifier", Rec."VAT Identifier");
+            if HSCodes.FindFirst() then
+                exit(HSCodes.HSCode)
+            else
+                exit('');
+        end;
 
     end;
+
 
     procedure GetLinesMember(): JsonArray
     var
