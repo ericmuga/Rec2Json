@@ -64,10 +64,34 @@ codeunit 51520051 "Control Unit Signage"
             if (Rec."Posting Date" > GLS."Allow Posting To") then
                 Error('The Posting date is not within the allowed range of posting dates');
 
-            if Rec."Document Type" = Rec."Document Type"::"Credit Memo" then
-                InvOrCN := 'SCN'
-            else
-                InvOrCN := 'SIN';
+            if Rec."Document Type" = Rec."Document Type"::"Credit Memo" then begin
+                case CompanyName of
+                    'RMK':
+                        InvOrCN := 'RMCN';
+                    'FCL':
+                        InvOrCN := 'FCCN';
+                    'CM':
+                        InvOrCN := 'CMCN';
+                    'FLM':
+                        InvOrCN := 'FMCN';
+
+                end;
+            END
+
+            else begin
+                case CompanyName of
+                    'RMK':
+                        InvOrCN := 'RMSN';
+                    'FCL':
+                        InvOrCN := 'FCSN';
+                    'CM':
+                        InvOrCN := 'CMSN';
+                    'FLM':
+                        InvOrCN := 'FMSN';
+
+                end;
+            end;
+
 
             if Not (Setup.FindFirst()) then begin
                 Message('QR Code Setup is empty \ Please modify the settings');
