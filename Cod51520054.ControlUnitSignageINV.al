@@ -42,7 +42,19 @@ codeunit 51520054 "Control Unit SignageINV"
             Rec.CUInvoiceNo := '';
             Rec.CUNo := '';
             Rec.SignTime := '';
-            InvOrCN := 'SIN';
+
+            case CompanyName of
+                'RMK':
+                    InvOrCN := 'RMSN';
+                'FCL':
+                    InvOrCN := 'FCSN';
+                'CM':
+                    InvOrCN := 'CMSN';
+                'FLM':
+                    InvOrCN := 'FMSN';
+
+            end;
+
 
             if Not (Setup.FindFirst()) then begin
                 Message('QR Code Setup is empty \ Please modify the settings');

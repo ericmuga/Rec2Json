@@ -328,8 +328,9 @@ codeunit 51520051 "Control Unit Signage"
                     AppliedCreditNotes += SCMH."No." + '|';
                 until SCMH.Next() = 0;
 
-            if StrPos(AppliedCreditNotes, '|') = StrLen(AppliedCreditNotes) then
-                AppliedCreditNotes := CopyStr(AppliedCreditNotes, 1, StrLen(AppliedCreditNotes) - 1);
+            if (AppliedCreditNotes <> '') then
+                IF (StrPos(AppliedCreditNotes, '|') = StrLen(AppliedCreditNotes)) then
+                    AppliedCreditNotes := CopyStr(AppliedCreditNotes, 1, StrLen(AppliedCreditNotes) - 1);
 
             if AppliedCreditNotes <> '' then begin
                 SL.Reset();
@@ -589,14 +590,9 @@ codeunit 51520051 "Control Unit Signage"
                     UP := Round((Lines."Amount Including VAT" / Lines.Quantity), 0.000001);
                     Amount += ROUND(UP, 0.000001) * Lines.Quantity;
                     Items.Add('unitPrice', UP);
-                    if (resolveHSCode(Lines) = '') then
-                        hs := ''
-                    else
-                        hs := resolveHSCode(Lines);
-
+                    hs := resolveHSCode(Lines);
                     if hs <> '' then
                         Items.Add('hsCode', hs);
-
                     JA.Add(Items);
                     Clear(Items);
                 until Lines.Next() = 0;
@@ -613,91 +609,52 @@ codeunit 51520051 "Control Unit Signage"
             CNLines.SetRange("Document No.", Rec."No.");
             CNLines.SetRange("Document Type", Rec."Document Type");
             CNLines.SetFilter("Amount Including VAT", '>%1', 0);
-            CNLines.SetCurrentKey("No.");
-            CNLines.SetAscending("No.", true);
+            CNLines.SetAscending("Description", true);
             if CNLines.Find('-') then
                 repeat
                     counter += 1;
                     if (Checker = '') then begin
                         //first line
                         Checker := CNLines.Description;
-                        if (CNLines.Type = CNLines.Type::Item) then
-                            NoChecker := CNLines."No."
-                        ELSE begin
-                            ItemRec.SetRange(Description, CNLines.Description);
-                            if ItemRec.FindFirst() then
-                                NoChecker := ItemRec."No.";
-                        end;
-                        VATCheck := CNLines."VAT Identifier";
                         CNPrdSum += CNLines."Amount Including VAT";
-
                     end
-                    else begin
+                    else begin  //meaning more than one line
                         if Checker = CNLines.Description then begin
                             CNPrdSum += CNLines."Amount Including VAT";
-                            if (CNLines.Type = CNLines.Type::Item) then
-                                NoChecker := CNLines."No."
-                            ELSE begin
-                                ItemRec.SetRange(Description, CNLines.Description);
-                                if ItemRec.FindFirst() then
-                                    NoChecker := ItemRec."No.";
-                            end;
+
                         end
                         else begin
                             //push the previous line
-
                             Items.Add('totalAmount', ROUND(CNPrdSum - 0.10, 0.000001, '<'));
                             Items.Add('name', CopyStr(Checker, 1, 42));
-
                             hs := resolveHSCode(CNLines);
-
                             if hs <> '' then Items.Add('hsCode', hs);
                             JA.Add(Items);
                             Clear(Items);
-
                             //reset variables
                             CNPrdSum := CNLines."Amount Including VAT";
                             Checker := CNLines.Description;
-                            if (CNLines.Type = CNLines.Type::Item) then
-                                NoChecker := CNLines."No.";
-                            VATCheck := CNLines."VAT Identifier";
+
                         end;
                     end;
 
-                    //if first line is also last line
-
-                    Checker := CNLines.Description;
-                    if (CNLines.Type = CNLines.Type::Item) then
-                        NoChecker := CNLines."No."
-                    ELSE begin
-                        ItemRec.SetRange(Description, CNLines.Description);
-                        if ItemRec.FindFirst() then
-                            NoChecker := ItemRec."No.";
-                    end;
-
-                    VATCheck := CNLines."VAT Identifier";
-
+                    //if last line
                     if (CNLines.Count - counter = 0) then begin
                         Items.Add('totalAmount', ROUND(CNPrdSum - 0.10, 0.000001, '<'));
                         Items.Add('name', CopyStr(Checker, 1, 42));
-
                         hs := resolveHSCode(CNLines);
                         if hs <> '' then
                             Items.Add('hsCode', hs);
-
                         JA.Add(Items);
                         Clear(Items);
+
                     end;
-
-
 
                 until CNLines.Next() = 0;
 
-
-        end;
+        end; //end credit notes
         exit(JA);
-    end;
-
+    end;  //end procedure
 
     local procedure resolveHSCode(Rec: Record "Sales Line"): Code[20]
     var
