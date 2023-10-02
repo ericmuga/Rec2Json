@@ -670,6 +670,27 @@ codeunit 51520051 "Control Unit Signage"
             if (Rec.Type = Rec.Type::Item) then
                 HSCodes.SetRange("Item No.", Rec."No.")
             else begin
+                //RMK
+                IF CompanyName = 'RMK' then begin
+                    case Rec."No." of
+
+                        '50004':
+                            exit('0103.10.00');
+                        '50005':
+                            exit('0018.11.00');
+                        '60100':
+                            exit('3915.90.00');
+                        '60200':
+                            exit('3101.00.00');
+                        '60350':
+                            exit('0003.11.00');
+                        '60360':
+                            exit('0003.11.00');
+
+
+                    end;
+                end;
+
                 ItemRec.Reset();
                 ItemRec.SetRange(Description, Rec.Description);
                 if ItemRec.FindFirst() then
