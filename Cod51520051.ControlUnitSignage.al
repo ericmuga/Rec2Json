@@ -609,6 +609,7 @@ codeunit 51520051 "Control Unit Signage"
             CNLines.SetRange("Document No.", Rec."No.");
             CNLines.SetRange("Document Type", Rec."Document Type");
             CNLines.SetFilter("Amount Including VAT", '>%1', 0);
+            CNLines.SetCurrentKey(Description);
             CNLines.SetAscending("Description", true);
             if CNLines.Find('-') then
                 repeat
