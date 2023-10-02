@@ -408,7 +408,7 @@ codeunit 51520055 "Control Unit Signage CN"
                 AppliedCreditNotes += SCMH."No." + '|';
             until SCMH.Next() = 0;
 
-        if StrPos(AppliedCreditNotes, '|') = StrLen(AppliedCreditNotes) then
+        if CopyStr(AppliedCreditNotes, StrLen(AppliedCreditNotes), 1) = '|' then
             AppliedCreditNotes := CopyStr(AppliedCreditNotes, 1, StrLen(AppliedCreditNotes) - 1);
 
         if AppliedCreditNotes <> '' then begin
