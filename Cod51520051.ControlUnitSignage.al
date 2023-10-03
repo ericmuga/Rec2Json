@@ -566,7 +566,7 @@ codeunit 51520051 "Control Unit Signage"
         CrNoteQuery: Query 50102;
         INVQuery: Query 50103;
         ItemRec: Record Item;
-        Checker: Text[50];
+        Checker: Text[100];
         NoChecker: Code[50];
         VATCheck: Code[10];
         CNPrdSum: Decimal;

@@ -458,7 +458,7 @@ codeunit 51520055 "Control Unit Signage CN"
         INVQuery: Query 50103;
         ItemRec: Record Item;
         Checker: Text[50];
-        NoChecker: Code[50];
+        NoChecker: Code[100];
         VATCheck: Code[10];
         CNPrdSum: Decimal;
         CurrentHSCode: Code[50];
