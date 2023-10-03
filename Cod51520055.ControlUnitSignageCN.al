@@ -408,7 +408,8 @@ codeunit 51520055 "Control Unit Signage CN"
                 AppliedCreditNotes += SCMH."No." + '|';
             until SCMH.Next() = 0;
 
-        if CopyStr(AppliedCreditNotes, StrLen(AppliedCreditNotes), 1) = '|' then
+        // if CopyStr(AppliedCreditNotes, StrLen(AppliedCreditNotes), 1) = '|' then
+        if AppliedCreditNotes <> '' then
             AppliedCreditNotes := CopyStr(AppliedCreditNotes, 1, StrLen(AppliedCreditNotes) - 1);
 
         if AppliedCreditNotes <> '' then begin
@@ -460,6 +461,7 @@ codeunit 51520055 "Control Unit Signage CN"
         NoChecker: Code[50];
         VATCheck: Code[10];
         CNPrdSum: Decimal;
+        CurrentHSCode: Code[50];
     // counter: Integer;
     begin
         // if StrPos(UserId, 'EMUGA') <> 0 then Message('GetLineItems Called');
@@ -485,74 +487,43 @@ codeunit 51520055 "Control Unit Signage CN"
                 if (Checker = '') then begin
                     //first line
                     Checker := CNLines.Description;
-                    if (CNLines.Type = CNLines.Type::Item) then
-                        NoChecker := CNLines."No."
-                    ELSE begin
-                        ItemRec.SetRange(Description, CNLines.Description);
-                        if ItemRec.FindFirst() then
-                            NoChecker := ItemRec."No.";
-                    end;
-                    VATCheck := CNLines."VAT Identifier";
+                    CurrentHSCode := resolveHSCode2(CNLines.Description, CNLines."VAT Identifier", CNLines."No.");
                     CNPrdSum += CNLines."Amount Including VAT";
 
                 end
                 else begin
                     if Checker = CNLines.Description then begin
                         CNPrdSum += CNLines."Amount Including VAT";
-                        if (CNLines.Type = CNLines.Type::Item) then
-                            NoChecker := CNLines."No."
-                        ELSE begin
-                            ItemRec.SetRange(Description, CNLines.Description);
-                            if ItemRec.FindFirst() then
-                                NoChecker := ItemRec."No.";
-                        end;
+
                     end
                     else begin
                         //push the previous line
 
                         Items.Add('totalAmount', ROUND(CNPrdSum - 0.10, 0.000001, '<'));
                         Items.Add('name', CopyStr(Checker, 1, 42));
-
-                        hs := resolveHSCode(CNLines);
-
-                        if hs <> '' then Items.Add('hsCode', hs);
+                        if CurrentHSCode <> '' then Items.Add('hsCode', CurrentHSCode);
                         JA.Add(Items);
                         Clear(Items);
 
                         //reset variables
                         CNPrdSum := CNLines."Amount Including VAT";
                         Checker := CNLines.Description;
-                        if (CNLines.Type = CNLines.Type::Item) then
-                            NoChecker := CNLines."No.";
-                        VATCheck := CNLines."VAT Identifier";
+                        CurrentHSCode := resolveHSCode2(CNLines.Description, CNLines."VAT Identifier", CNLines."No.");
+
                     end;
                 end;
 
-                //if first line is also last line
-
-                Checker := CNLines.Description;
-                if (CNLines.Type = CNLines.Type::Item) then
-                    NoChecker := CNLines."No."
-                ELSE begin
-                    ItemRec.SetRange(Description, CNLines.Description);
-                    if ItemRec.FindFirst() then
-                        NoChecker := ItemRec."No.";
-                end;
-
-                VATCheck := CNLines."VAT Identifier";
-
+                //if last line
                 if (CNLines.Count - counter = 0) then begin
                     Items.Add('totalAmount', ROUND(CNPrdSum - 0.10, 0.000001, '<'));
                     Items.Add('name', CopyStr(Checker, 1, 42));
-
-                    hs := resolveHSCode(CNLines);
-                    if hs <> '' then
-                        Items.Add('hsCode', hs);
-
+                    CurrentHsCode := resolveHSCode2(CNLines.Description, CNLines."VAT Identifier", CNLines."No.");
+                    if CurrentHsCode <> '' then
+                        Items.Add('hsCode', CurrentHsCode);
                     JA.Add(Items);
                     Clear(Items);
-                end;
 
+                end;
 
 
             until CNLines.Next() = 0;
@@ -627,7 +598,7 @@ codeunit 51520055 "Control Unit Signage CN"
                         ItemRec.SetRange(Description, Lines.Description);
                         if ItemRec.FindFirst() then;
                     end;
-                    hs := resolveHSCode(Lines);
+                    hs := resolveHSCode2(Lines.Description, Lines."VAT Identifier", Lines."No.");
                     /* 
                         if hs <> '' then
                             Items.Add('hsCode', resolveHSCode(ItemRec."No.", Lines."VAT Identifier"));
@@ -668,6 +639,61 @@ codeunit 51520055 "Control Unit Signage CN"
         end;
 
     end;
+
+
+    local procedure resolveHSCode2(Desc: Text[100]; VATID: code[10]; ItemNo: Code[10]): Code[20]
+    var
+        HSCodes: Record "HS Codes";
+        HSCode: Code[20];
+        ItemRec: Record Item;
+    begin
+        HSCode := '';
+
+        if (Desc <> 'Currency Rounding') then begin
+            HSCodes.Reset();
+            HSCodes.SetRange("Item No.", ItemNo);
+            HSCodes.SetRange("VAT Identifier");
+            if HSCodes.FindFirst() then
+                exit(HSCodes.HSCode)
+            else begin
+                //RMK
+                IF CompanyName = 'RMK' then begin
+                    case ItemNo of
+
+                        '50004':
+                            exit('0103.10.00');
+                        '50005':
+                            exit('0018.11.00');
+                        '60100':
+                            exit('3915.90.00');
+                        '60200':
+                            exit('3101.00.00');
+                        '60350':
+                            exit('0003.11.00');
+                        '60360':
+                            exit('0003.11.00');
+
+
+                    end;
+                end;
+
+                ItemRec.Reset();
+                ItemRec.SetRange(Description, Desc);
+                if ItemRec.FindFirst() then begin
+                    HSCodes.SetRange("Item No.", ItemRec."No.");
+                    HSCodes.SetRange("VAT Identifier", VATID);
+                    if HSCodes.FindFirst() then
+                        exit(HSCodes.HSCode)
+                    else
+                        exit('');
+                end;
+
+            end;
+
+        end;
+
+    end;
+
 
 
     procedure GetLinesMember(): JsonArray

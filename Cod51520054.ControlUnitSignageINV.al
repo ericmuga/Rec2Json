@@ -342,11 +342,9 @@ codeunit 51520054 "Control Unit SignageINV"
 
                 Items.Add('unitPrice', UP);
 
-                hs := resolveHSCode(Lines);
+                hs := resolveHSCode2(Lines.Description, Lines."VAT Identifier", Lines."No.");
                 if hs <> '' then
-                    Items.Add('hsCode', resolveHSCode(Lines));
-
-
+                    Items.Add('hsCode', hs);
                 if Lines.Description <> 'Currency Rounding' then
                     JA.Add(Items);
                 Clear(Items);
@@ -380,6 +378,60 @@ codeunit 51520054 "Control Unit SignageINV"
         end;
 
     end;
+
+    local procedure resolveHSCode2(Desc: Text[100]; VATID: code[10]; ItemNo: Code[10]): Code[20]
+    var
+        HSCodes: Record "HS Codes";
+        HSCode: Code[20];
+        ItemRec: Record Item;
+    begin
+        HSCode := '';
+
+        if (Desc <> 'Currency Rounding') then begin
+            HSCodes.Reset();
+            HSCodes.SetRange("Item No.", ItemNo);
+            HSCodes.SetRange("VAT Identifier");
+            if HSCodes.FindFirst() then
+                exit(HSCodes.HSCode)
+            else begin
+                //RMK
+                IF CompanyName = 'RMK' then begin
+                    case ItemNo of
+
+                        '50004':
+                            exit('0103.10.00');
+                        '50005':
+                            exit('0018.11.00');
+                        '60100':
+                            exit('3915.90.00');
+                        '60200':
+                            exit('3101.00.00');
+                        '60350':
+                            exit('0003.11.00');
+                        '60360':
+                            exit('0003.11.00');
+
+
+                    end;
+                end;
+
+                ItemRec.Reset();
+                ItemRec.SetRange(Description, Desc);
+                if ItemRec.FindFirst() then begin
+                    HSCodes.SetRange("Item No.", ItemRec."No.");
+                    HSCodes.SetRange("VAT Identifier", VATID);
+                    if HSCodes.FindFirst() then
+                        exit(HSCodes.HSCode)
+                    else
+                        exit('');
+                end;
+
+            end;
+
+        end;
+
+    end;
+
 
 
     procedure GetLinesMember(): JsonArray
