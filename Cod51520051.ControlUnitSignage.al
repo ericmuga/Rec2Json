@@ -307,12 +307,13 @@ codeunit 51520051 "Control Unit Signage"
                     SINVL.Reset();
                     SINVL.SetRange("Document No.", Rec."Applies-to Doc. No.");
                     SINVL.SetRange(Description, SL.Description);
+                    SINVL.SetFilter(Quantity, '<>%1', 0);
                     if SINVL.Find('-') then begin
                         if SINVL."Amount Including VAT" < SL."Amount Including VAT" then
-                            error('Invoice item line amount: ' + SINVL.Description + ' is lower than the credit line amount');
+                            // error('Invoice item line amount: ' + SINVL.Description + ' is lower than the credit line amount');
 
                         if SINVL."VAT Identifier" <> SL."VAT Identifier" then
-                            error('Invoice item line VAT Identifier: ' + SINVL.Description + ' is different from the Cr. Memo VAT Identifier');
+                                error('Invoice item line VAT Identifier: ' + SINVL.Description + ' is different from the Cr. Memo VAT Identifier');
                     end
                     else
                         error('Item: ' + SL.Description + ' was not found on the applied invoice: ' + SINVL."Document No.");

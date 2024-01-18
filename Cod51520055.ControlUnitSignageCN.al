@@ -108,7 +108,7 @@ codeunit 51520055 "Control Unit Signage CN"
             RequestObject.Add('transactionType', 1);
             // RequestObject.Add('cashier', CashierName);
             RequestObject.Add('cashier', CopyStr(UserId, StrPos(UserId, '\') + 1, StrLen(UserId)));
-            RequestObject.Add('items', GetLineItems(Rec));
+            RequestObject.Add('items', GetLineItems2(Rec));
             IF NOT SINV.GET(Rec."Applies-to Doc. No.") then Error('The applied Invoice No. does not exist');
             RequestObject.Add('relevantNumber', SINV.CUInvoiceNo);
 
@@ -386,12 +386,14 @@ codeunit 51520055 "Control Unit Signage CN"
                 SINVL.Reset();
                 SINVL.SetRange("Document No.", Rec."Applies-to Doc. No.");
                 SINVL.SetRange(Description, SL.Description);
+                SINVL.SetFilter(Quantity, '<>%1', 0);
                 if SINVL.Find('-') then begin
                     if SINVL."Amount Including VAT" < SL."Amount Including VAT" then
-                        error('Invoice item line amount: ' + SINVL.Description + ' is lower than the credit line amount');
 
-                    if SINVL."VAT Identifier" <> SL."VAT Identifier" then
-                        error('Invoice item line VAT Identifier: ' + SINVL.Description + ' is different from the Cr. Memo VAT Identifier');
+                        //error('Invoice item line amount: ' + SINVL.Description + ' is lower than the credit line amount');
+
+                        if SINVL."VAT Identifier" <> SL."VAT Identifier" then
+                            error('Invoice item line VAT Identifier: ' + SINVL.Description + ' is different from the Cr. Memo VAT Identifier');
                 end
                 else
                     error('Item: ' + SL.Description + ' was not found on the applied invoice: ' + SINVL."Document No.");

@@ -2461,7 +2461,7 @@
               <Top>3.8128cm</Top>
               <Left>0.15873cm</Left>
               <Height>11pt</Height>
-              <Width>11.71255cm</Width>
+              <Width>5.19322cm</Width>
               <ZIndex>4</ZIndex>
               <Style>
                 <Border />
@@ -2492,7 +2492,7 @@
               <Top>3.35486cm</Top>
               <Left>0.15873cm</Left>
               <Height>11pt</Height>
-              <Width>11.71255cm</Width>
+              <Width>5.19322cm</Width>
               <ZIndex>5</ZIndex>
               <Style>
                 <Border />
@@ -2523,7 +2523,7 @@
               <Top>2.9668cm</Top>
               <Left>0.15873cm</Left>
               <Height>11pt</Height>
-              <Width>11.71255cm</Width>
+              <Width>5.19322cm</Width>
               <ZIndex>6</ZIndex>
               <Style>
                 <Border />
@@ -2551,10 +2551,10 @@
                   </Style>
                 </Paragraph>
               </Paragraphs>
-              <Top>2.5438cm</Top>
-              <Left>0.15873cm</Left>
+              <Top>2.50819cm</Top>
+              <Left>0.20106cm</Left>
               <Height>11pt</Height>
-              <Width>11.71255cm</Width>
+              <Width>5.15088cm</Width>
               <ZIndex>7</ZIndex>
               <Style>
                 <Border />
@@ -2585,7 +2585,7 @@
               <Top>2.1208cm</Top>
               <Left>0.15873cm</Left>
               <Height>11pt</Height>
-              <Width>11.71255cm</Width>
+              <Width>5.19322cm</Width>
               <ZIndex>8</ZIndex>
               <Style>
                 <Border />
@@ -2616,7 +2616,7 @@
               <Top>1.72955cm</Top>
               <Left>0.15873cm</Left>
               <Height>11pt</Height>
-              <Width>11.71255cm</Width>
+              <Width>5.19322cm</Width>
               <ZIndex>9</ZIndex>
               <Style>
                 <Border />
@@ -2647,7 +2647,7 @@
               <Top>1.3383cm</Top>
               <Left>0.15873cm</Left>
               <Height>11pt</Height>
-              <Width>11.71255cm</Width>
+              <Width>5.19322cm</Width>
               <ZIndex>10</ZIndex>
               <Style>
                 <Border />
@@ -2678,7 +2678,7 @@
               <Top>0.9153cm</Top>
               <Left>0.03471in</Left>
               <Height>11pt</Height>
-              <Width>11.78312cm</Width>
+              <Width>5.26379cm</Width>
               <ZIndex>11</ZIndex>
               <Style>
                 <Border />
@@ -3929,7 +3929,6 @@
                 </Paragraph>
               </Paragraphs>
               <rd:DefaultName>Textbox60</rd:DefaultName>
-              <Top>0cm</Top>
               <Left>17.10793cm</Left>
               <Height>0.6cm</Height>
               <Width>0.59966cm</Width>
@@ -3981,6 +3980,22 @@
                 <PaddingBottom>2pt</PaddingBottom>
               </Style>
             </Textbox>
+            <Image Name="logo">
+              <Source>Database</Source>
+              <Value>=First(Fields!CompanyInfo1Picture.Value, "DataSet_Result")</Value>
+              <MIMEType>image/bmp</MIMEType>
+              <Sizing>FitProportional</Sizing>
+              <Top>0.41487cm</Top>
+              <Left>6.40503cm</Left>
+              <Height>3.78599cm</Height>
+              <Width>5.2038cm</Width>
+              <ZIndex>52</ZIndex>
+              <Style>
+                <Border>
+                  <Style>None</Style>
+                </Border>
+              </Style>
+            </Image>
           </ReportItems>
           <Style>
             <FontFamily>Segoe UI</FontFamily>

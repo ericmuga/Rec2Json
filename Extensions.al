@@ -382,13 +382,88 @@ pageextension 51520053 SalesCRMemoExtension extends "Sales Credit Memo"
     actions
     {
         // Adding a new action group 'MyNewActionGroup' in the 'Creation' area
+
         addbefore("P&osting")
         {
             group(Posting)
             {
+
                 action(Sign_Post)
                 {
                     Caption = 'Sign & Post';
+                    Promoted = true;
+                    PromotedIsBig = true;
+                    PromotedCategory = Process;
+                    Image = PostDocument;
+
+                    trigger OnAction();
+                    var
+                        OutS: OutStream;
+                        TextVar: Text;
+                        salescrMemoHdr: Record "Sales Cr.Memo Header";
+                        salescrMemoLine: Record "Sales Cr.Memo Line";
+                        QR: Text;
+                        Setup: Record 51521060;
+                        SIN: Code[20];
+                        Signage: Codeunit 51520051;
+                        Sinv: Record "Sales Invoice Header";
+                        CU: Codeunit UploadQRToCreditMemo;
+                        CU2: Codeunit "Control Unit Signage";
+                        CUINVNOINV: Code[250];
+                    begin
+
+                        Signage.CheckReturnReason(Rec);
+                        SIN := Rec."No.";
+
+                        if Rec."Applies-to Doc. No." = '' then Error('No invoice was applied');
+
+                        if Sinv.GET(Rec."Applies-to Doc. No.") then
+                            if Sinv.CUInvoiceNo = '' then begin
+                                if Confirm(' The Applied invoice is not TIMS Signed, do you want to proceed with posting?') then begin
+                                    CODEUNIT.Run(Codeunit::"Sales-Post (Yes/No)", Rec);
+
+                                    salescrMemoHdr.RESET;
+                                    Setup.FindFirst();
+                                    salescrMemoHdr.SETRANGE("Pre-Assigned No.", SIN);
+                                    if salescrMemoHdr.FindFirst() then
+                                        CU.upload(salescrMemoHdr);
+                                    // Report.Run(Report::"Standard Sales - Credit Memo2", false, true, salescrMemoHdr);
+
+                                end;
+                            end
+                            else begin
+                                if Sinv.GET(Rec."Applies-to Doc. No.") then
+                                    if (Sinv.CUInvoiceNo = Rec.CUInvoiceNo) then begin
+                                        Rec.CUInvoiceNo := '';
+                                        Rec.CUNo := '';
+                                        rec.SignTime := '';
+                                        Rec.Modify();
+                                        CurrPage.Update();
+                                    end;
+
+                                if (Rec.CUInvoiceNo = '') then
+                                    If (Signage.VerifyPIN(Rec) = '0100') then
+                                        Signage.SignInvoices(Rec)
+                                    else
+                                        Error('The system could not open the connection');
+
+                                CODEUNIT.Run(Codeunit::"Sales-Post (Yes/No)", Rec);
+                                salescrMemoHdr.RESET;
+                                Setup.FindFirst();
+                                salescrMemoHdr.SETRANGE("Pre-Assigned No.", SIN);
+                                if salescrMemoHdr.FindFirst() then begin
+                                    CU2.GenerateQRCode(Setup.ImageServiceUri, Rec.CUInvoiceNo);
+                                    CU.upload(salescrMemoHdr);
+                                    // Report.Run(Report::"Standard Sales - Credit Memo", false, true, salescrMemoHdr);
+                                end;
+                            end;
+
+
+                    end;
+                }
+                action(Sign_Print)
+                {
+                    Caption = 'Sign & Print';
                     Promoted = true;
                     PromotedIsBig = true;
                     PromotedCategory = Process;
@@ -460,28 +535,7 @@ pageextension 51520053 SalesCRMemoExtension extends "Sales Credit Memo"
                     end;
                 }
 
-                action(Trim_Truncate)
-                {
-                    Caption = 'Trim & Truncate';
 
-                    trigger OnAction()
-                    var
-                        lines: Record "Sales Line";
-
-                    begin
-                        //attempt to trim decimal places
-                        lines.SetRange("Document No.", Rec."No.");
-                        lines.SetRange("Document Type", Rec."Document Type");
-                        lines.SetFilter(Quantity, '<>%1', 0);
-                        lines.SetFilter("No.", '<>%1', '');
-                        if lines.find('-') then
-                            repeat
-                                lines."Unit Price" := (lines."Unit Price" - 0.01);
-                                lines.Modify();
-                            until lines.Next() = 0;
-                    end;
-
-                }
             }
         }
     }
@@ -503,9 +557,84 @@ pageextension 51520062 SalesCRMemosExtension extends "Sales Credit Memos"
         {
             group(Posting)
             {
-                action(Sign_Post)
+
+                action(Sign)
                 {
-                    Caption = 'Sign & Post';
+                    Caption = 'Sign & Post ';
+                    Promoted = true;
+                    PromotedIsBig = true;
+                    PromotedCategory = Process;
+                    Image = PostDocument;
+
+                    trigger OnAction();
+                    var
+                        OutS: OutStream;
+                        TextVar: Text;
+                        salescrMemoHdr: Record "Sales Cr.Memo Header";
+                        salescrMemoLine: Record "Sales Cr.Memo Line";
+                        QR: Text;
+                        Setup: Record 51521060;
+                        SIN: Code[20];
+                        Signage: Codeunit 51520051;
+                        Sinv: Record "Sales Invoice Header";
+                        CU: Codeunit UploadQRToCreditMemo;
+                        CU2: Codeunit "Control Unit Signage";
+                        CUINVNOINV: Code[250];
+                    begin
+                        Rec.SetRange("No.", "No.");
+                        Signage.CheckReturnReason(Rec);
+                        SIN := Rec."No.";
+
+                        if Rec."Applies-to Doc. No." = '' then Error('No invoice was applied');
+
+                        if Sinv.GET(Rec."Applies-to Doc. No.") then
+                            if Sinv.CUInvoiceNo = '' then begin
+                                if Confirm(' The Applied invoice is not TIMS Signed, do you want to proceed with posting?') then begin
+                                    CODEUNIT.Run(Codeunit::"Sales-Post (Yes/No)", Rec);
+
+                                    salescrMemoHdr.RESET;
+                                    Setup.FindFirst();
+                                    salescrMemoHdr.SETRANGE("Pre-Assigned No.", SIN);
+                                    if salescrMemoHdr.FindFirst() then
+                                        CU.upload(salescrMemoHdr);
+                                    // Report.Run(Report::"Standard Sales - Credit Memo2", false, true, salescrMemoHdr);
+
+                                end;
+                            end
+                            else begin
+                                if Sinv.GET(Rec."Applies-to Doc. No.") then
+                                    if (Sinv.CUInvoiceNo = Rec.CUInvoiceNo) then begin
+                                        Rec.CUInvoiceNo := '';
+                                        Rec.CUNo := '';
+                                        rec.SignTime := '';
+                                        Rec.Modify();
+                                        CurrPage.Update();
+                                    end;
+
+                                if (Rec.CUInvoiceNo = '') then
+                                    If (Signage.VerifyPIN(Rec) = '0100') then
+                                        Signage.SignInvoices(Rec)
+                                    else
+                                        Error('The system could not open the connection');
+
+                                CODEUNIT.Run(Codeunit::"Sales-Post (Yes/No)", Rec);
+                                salescrMemoHdr.RESET;
+                                Setup.FindFirst();
+                                salescrMemoHdr.SETRANGE("Pre-Assigned No.", SIN);
+                                if salescrMemoHdr.FindFirst() then begin
+                                    CU2.GenerateQRCode(Setup.ImageServiceUri, Rec.CUInvoiceNo);
+                                    CU.upload(salescrMemoHdr);
+                                    // Report.Run(Report::"Standard Sales - Credit Memo", false, true, salescrMemoHdr);
+                                end;
+                            end;
+
+
+                    end;
+                }
+
+                action(Sign_Print)
+                {
+                    Caption = 'Sign & Print';
                     Promoted = true;
                     PromotedIsBig = true;
                     PromotedCategory = Process;
@@ -890,9 +1019,11 @@ pageextension 51520059 PostedCRMemoExtension extends "Posted Sales Credit Memo"
         {
             group(Posting)
             {
-                action(Print_Sign)
+
+
+                action(Print_)
                 {
-                    Caption = 'Upload Signature';
+                    Caption = 'Print';
                     Promoted = true;
                     PromotedIsBig = true;
                     PromotedCategory = Process;
@@ -920,9 +1051,57 @@ pageextension 51520059 PostedCRMemoExtension extends "Posted Sales Credit Memo"
                     end;
                 }
 
-                action(Sign_Post)
+                action(Sign)
                 {
                     Caption = 'Sign';
+                    Promoted = true;
+                    PromotedIsBig = true;
+                    PromotedCategory = Process;
+                    Image = PostDocument;
+
+                    trigger OnAction();
+                    var
+                        OutS: OutStream;
+                        TextVar: Text;
+                        salescrMemoHdr: Record "Sales Cr.Memo Header";
+                        salescrMemoLine: Record "Sales Cr.Memo Line";
+                        QR: Text;
+                        Setup: Record 51521060;
+                        SIN: Code[20];
+                        Signage: Codeunit 51520055;
+                        Sinv: Record "Sales Invoice Header";
+                        CU: Codeunit UploadQRToCreditMemo;
+                    begin
+                        SIN := Rec."No.";
+
+                        if Rec."Applies-to Doc. No." = '' then Error('No invoice was applied');
+                        if Rec.CUInvoiceNo <> '' then Error('The document is already signed');
+                        if Sinv.GET(Rec."Applies-to Doc. No.") then
+                            if Sinv.CUInvoiceNo = '' then begin
+                                Error(' The Applied invoice is not TIMS Signed');
+                            end
+                            else begin
+                                If (Signage.VerifyPIN(Rec) = '0100') then
+                                    Signage.SignInvoices(Rec)
+                                else
+                                    Error('The system could not open the connection');
+                                // CODEUNIT.Run(Codeunit::"Sales-Post (Yes/No)", Rec);
+                                // salescrMemoHdr.RESET;
+                                Setup.FindFirst();
+                                // salescrMemoHdr.SETRANGE("Pre-Assigned No.", SIN);
+                                Rec.SetRange("No.", "No.");
+                                CU.upload(Rec);
+                                // Report.Run(Report::"Standard Sales - Credit Memo", false, true, Rec);
+
+                            end;
+
+
+                    end;
+                }
+
+                action(Sign_Print)
+                {
+                    Caption = 'Sign & Print';
                     Promoted = true;
                     PromotedIsBig = true;
                     PromotedCategory = Process;
@@ -1193,39 +1372,99 @@ pageextension 51520061 PostedSalesCRMemos extends "Posted Sales Credit Memos"
         {
             group(Posting)
             {
-                action(Print_Sign)
+
+                action(Sign)
                 {
-                    Caption = 'Upload Signature';
+                    Caption = 'Sign';
                     Promoted = true;
                     PromotedIsBig = true;
                     PromotedCategory = Process;
                     Image = PostDocument;
 
-
                     trigger OnAction();
+                    var
+                        OutS: OutStream;
+                        TextVar: Text;
+                        salescrMemoHdr: Record "Sales Cr.Memo Header";
+                        salescrMemoLine: Record "Sales Cr.Memo Line";
+                        QR: Text;
+                        Setup: Record 51521060;
+                        SIN: Code[20];
+                        Signage: Codeunit 51520055;
+                        Sinv: Record "Sales Invoice Header";
+                        CU: Codeunit UploadQRToCreditMemo;
+                    begin
+                        Rec.SetRange("No.", "No.");
+                        SIN := Rec."No.";
+
+                        if Rec."Applies-to Doc. No." = '' then Error('No invoice was applied');
+                        if Rec.CUInvoiceNo <> '' then Error('The document is already signed');
+                        if Sinv.GET(Rec."Applies-to Doc. No.") then
+                            if Sinv.CUInvoiceNo = '' then begin
+                                Error(' The Applied invoice is not TIMS Signed.');
+                            end
+                            else begin
+                                if Sinv.GET(Rec."Applies-to Doc. No.") then
+                                    if (Sinv.CUInvoiceNo = Rec.CUInvoiceNo) then begin
+                                        Rec.CUInvoiceNo := '';
+                                        Rec.CUNo := '';
+                                        rec.SignTime := '';
+                                        Rec.Modify();
+                                        CurrPage.Update();
+                                    end;
+                                If (Signage.VerifyPIN(Rec) = '0100') then
+                                    Signage.SignInvoices(Rec)
+                                else
+                                    Error('The system could not open the connection');
+                                // CODEUNIT.Run(Codeunit::"Sales-Post (Yes/No)", Rec);
+                                // salescrMemoHdr.RESET;
+                                Setup.FindFirst();
+                                // salescrMemoHdr.SETRANGE("Pre-Assigned No.", SIN);
+                                Rec.SetRange("No.", "No.");
+                                CU.upload(Rec);
+                                // Report.Run(Report::"Standard Sales - Credit Memo", false, true, Rec);
+
+                            end;
+
+
+                    end;
+                }
+
+
+
+                action(Print)
+                {
+                    Caption = 'Print';
+                    Promoted = true;
+                    PromotedIsBig = true;
+                    PromotedCategory = Process;
+                    Image = Print;
+                    trigger OnAction()
                     var
                         CU: Codeunit UploadQRToCreditMemo;
                         CU2: Codeunit "Control Unit Signage";
                         Setup: Record "Control Unit Setup";
 
                     begin
-
                         rec.SetRange("No.", "No.");
 
-                        Setup.FindFirst();
 
-                        CU2.GenerateQRCode(Setup.ImageServiceUri, Rec.CUInvoiceNo);
+                        if Rec.CUInvoiceNo <> '' then begin
+                            CU2.GenerateQRCode(Setup.ImageServiceUri, Rec.CUInvoiceNo);
+                            CU.upload(Rec);
+                            Commit();
+                            Setup.FindFirst();
+                        end;
 
-                        CU.upload(Rec);
-                        Commit();
                         // rec.CalcFields(QRCode);
-                        Report.Run(51520054, true, true, rec);
+                        Report.Run(51520054, true, true, rec)
                     end;
+
                 }
 
-                action(Sign_Post)
+                action(Sign_Print)
                 {
-                    Caption = 'Sign';
+                    Caption = 'Sign & Print';
                     Promoted = true;
                     PromotedIsBig = true;
                     PromotedCategory = Process;
@@ -1278,36 +1517,6 @@ pageextension 51520061 PostedSalesCRMemos extends "Posted Sales Credit Memos"
 
 
                     end;
-                }
-
-                action(Print_Doc)
-                {
-                    Caption = 'Print';
-                    Promoted = true;
-                    PromotedIsBig = true;
-                    PromotedCategory = Process;
-                    Image = Print;
-                    trigger OnAction()
-                    var
-                        CU: Codeunit UploadQRToCreditMemo;
-                        CU2: Codeunit "Control Unit Signage";
-                        Setup: Record "Control Unit Setup";
-
-                    begin
-                        rec.SetRange("No.", "No.");
-
-
-                        if Rec.CUInvoiceNo <> '' then begin
-                            CU2.GenerateQRCode(Setup.ImageServiceUri, Rec.CUInvoiceNo);
-                            CU.upload(Rec);
-                            Commit();
-                            Setup.FindFirst();
-                        end;
-
-                        // rec.CalcFields(QRCode);
-                        Report.Run(51520054, true, true, rec)
-                    end;
-
                 }
 
 

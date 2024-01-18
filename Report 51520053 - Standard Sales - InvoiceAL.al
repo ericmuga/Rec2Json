@@ -136,6 +136,7 @@ report 51520053 "Standard Sales - InvoiceAL"
                     }
                     column(CompanyInfo2Picture; CompanyInfo2.Picture)
                     {
+
                     }
                     column(CompanyInfo1Picture; CompanyInfo1.Picture)
                     {
