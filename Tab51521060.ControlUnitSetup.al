@@ -43,6 +43,8 @@ table 51521060 "Control Unit Setup"
             Caption = 'Friendly Name';
         }
 
+        
+
         field(8; PIN; Code[10])
         { }
     }

@@ -79,6 +79,12 @@ tableextension 51520051 QRCodeExtensionInv extends "Sales Invoice Header"
             Caption = 'Shipment No.';
             DataClassification = ToBeClassified;
         }
+        field(50026; Document; Blob)
+        {
+            Caption = 'Document';
+            DataClassification = ToBeClassified;
+        }
+
     }
 }/// 
 
@@ -116,6 +122,12 @@ tableextension 51520052 QRCodeExtensionCr extends "Sales Cr.Memo Header"
             Caption = 'Sign Time';
             DataClassification = ToBeClassified;
         }
+        field(50026; Document; Blob)
+        {
+            Caption = 'Document';
+            DataClassification = ToBeClassified;
+        }
+
     }
 }/// 
 
@@ -367,6 +379,86 @@ pageextension 51520052 SalesInvoiceExtension extends "Sales Invoice"
                             Report.Run(Report::"Standard Sales - Invoice", false, true, salesinv);
 
                             Report.Run(51520055, false, true, salesinv);
+
+                        end;
+                    end;
+                }
+
+                action(Sign_Send)
+                {
+                    Caption = 'Sign & Send';
+                    Promoted = true;
+                    PromotedIsBig = true;
+                    PromotedCategory = Process;
+                    Image = PostDocument;
+
+
+                    trigger OnAction();
+                    var
+                        OutS: OutStream;
+                        Ins: InStream;
+
+                        TextVar: Text;
+                        salesinv: Record "Sales Invoice Header";
+                        salesinvoiceline: Record "Sales Invoice Line";
+                        QR: Text;
+                        Setup: Record 51521060;
+                        SIN: Code[20];
+                        Signage: Codeunit 51520051;
+                        SH: Record "Sales Header";
+                        NS: Record "No. Series Line";
+                        SNRSetup: Record "Sales & Receivables Setup";
+                        CU: Codeunit UploadQRToInvoice;
+                        CU2: Codeunit "Control Unit Signage";
+                        CopyRep: Report "Standard Sales - Invoice";
+                        Parameters: Text;
+                        RecRef: RecordRef;
+                        FieldRef: FieldRef;
+                        SMTP: Codeunit "SMTP Mail";
+                        CompanyInf: Record "Company Information";
+                        HTMLMessage: Text[250];
+                        cust: Record Customer;
+                        CompanyText: Text[100];
+
+
+                    begin
+                        // CalcFields(QRCodeBlob);
+                        Setup.FindFirst();
+                        cust.GET(rec."Sell-to Customer No.");
+                        if Rec.CUInvoiceNo = '' then begin
+                            If (Signage.VerifyPIN(Rec) = '0100') then begin
+                                Signage.SignInvoices(Rec);
+                            end;
+                        end;
+
+                        SIN := Rec."No.";
+                        // //Post(CODEUNIT::"Sales-Post + Print");
+                        // CODEUNIT::"Sales-Post (Yes/No)");
+
+                        CODEUNIT.Run(Codeunit::"Sales-Post (Yes/No)", Rec);
+
+                        salesinv.RESET;
+                        Setup.FindFirst();
+                        salesinv.SETRANGE("Pre-Assigned No.", SIN);
+                        if salesinv.FindFirst() then begin
+                            CU2.GenerateQRCode(Setup.ImageServiceUri, Rec.CUInvoiceNo);
+                            CU.uploadAndShip(salesinv);
+                            Report.SaveAsPdf(Report::"Standard Sales - Invoice", Setup.QRCodeStorage + 'Inv_' + SIN +.'.pdf', salesinv);
+
+                            HtmlMessage := 'Dear Customer,' + '<br><br>' +
+                                        'Attached herewith please find your <b>Invoice</b>.' + '<br><br>' +
+                                        'Thank you for your continued business support.' + '<br><br>' +
+                                        'Best Regards,' + '<br>' +
+                                        '<u>Sales Team.</u>' + '<br><br>' +
+                                        CompanyInf.Name;
+                            IF COMPANYNAME = 'FCL' THEN CompanyText := 'Farmers Choice Invoice' + SIN ELSE CompanyText := 'Choice Meats Invoice' + SIN;
+
+                            SMTP.CreateMessage('System', 'BCSYSTEM@farmerschoice.co.ke', cust."E-Mail", CompanyText, HtmlMessage, TRUE);
+                            SMTP.AddAttachment(Setup.QRCodeStorage + 'Inv_' + SIN +.'.pdf', 'Invoice_' + SIN + '.pdf');
+                            SMTP.send();
+                            Clear(smtp);
+
+
 
                         end;
                     end;
@@ -821,9 +913,54 @@ pageextension 51520055 PostedSalesInvoiceExtension extends "Posted Sales Invoice
 
                 }
 
-                action(Sign_Ship)
+                action(Sign_Post)
                 {
-                    Caption = 'Sign & Ship';
+                    Caption = 'Sign';
+                    Promoted = true;
+                    PromotedIsBig = true;
+                    PromotedCategory = Process;
+                    Image = PostDocument;
+
+
+                    trigger OnAction();
+                    var
+                        OutS: OutStream;
+                        TextVar: Text;
+                        salesinv: Record "Sales Invoice Header";
+                        salesinvoiceline: Record "Sales Invoice Line";
+                        QR: Text;
+                        Setup: Record 51521060;
+                        SIN: Code[20];
+                        Signage: Codeunit 51520054;
+                        SH: Record "Sales Header";
+                        CU: Codeunit UploadQRToInvoice;
+
+                    begin
+                        // CalcFields(QRCodeBlob);
+
+                        //check that sales person code
+                        if Rec.CUInvoiceNo <> '' then Error('The Invoice has already been signed');
+                        if Confirm('Are you sure you want to sign the posted invoice?') then begin
+                            if Rec.CUInvoiceNo = '' then begin
+                                If (Signage.VerifyPIN(Rec) = '0100') then
+                                    Signage.SignInvoices(Rec)
+                                else
+                                    Error('The system was unable to initiate a signing request');
+                                Rec.SetRange("No.", "No.");
+                                // CU.upload(Rec);
+                                Report.Run(Report::"Standard Sales - Invoice", false, true, Rec);
+                                CurrPage.Update(true);
+                            end;
+
+                        end;
+
+                    end;
+
+                }
+
+                action(Sign_Send)
+                {
+                    Caption = 'Sign & Send';
                     Promoted = true;
                     PromotedIsBig = true;
                     PromotedCategory = Process;
@@ -844,6 +981,13 @@ pageextension 51520055 PostedSalesInvoiceExtension extends "Posted Sales Invoice
                         NS: Record "No. Series Line";
                         SNRSetup: Record "Sales & Receivables Setup";
                         CU: Codeunit UploadQRToInvoice;
+                        SMTP: Codeunit "SMTP Mail";
+                        Cust: Record Customer;
+                        OutSr: OutStream;
+                        InStr: InStream;
+                        Message: Text;
+
+
                     begin
                         if Rec.CUInvoiceNo <> '' then Error('The Invoice has already been signed');
                         if Confirm('Are you sure you want to sign the posted invoice?') then begin
@@ -853,9 +997,9 @@ pageextension 51520055 PostedSalesInvoiceExtension extends "Posted Sales Invoice
                                 else
                                     Error('The system was unable to initiate a signing request');
                                 Rec.SetRange("No.", "No.");
-                                // CU.upload(Rec);
-                                Report.Run(Report::"Standard Sales - Invoice", false, true, Rec);
-                                Report.Run(51520055, false, true, Rec);
+
+
+                                Report.SaveAs(Report::"Standard Sales - Invoice",)
                                 CurrPage.Update(true);
                             end;
                         end;

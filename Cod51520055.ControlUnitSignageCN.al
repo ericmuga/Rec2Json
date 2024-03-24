@@ -264,6 +264,24 @@ codeunit 51520055 "Control Unit Signage CN"
         exit(JA);
     end;
 
+    procedure GetAlphabetPartOfString(InputString: Text[250]): Text[250]
+    var
+        i: Integer;
+        Character: Char;
+        AlphabetPart: Text[250];
+    begin
+        AlphabetPart := '';
+        for i := 1 to StrLen(InputString) do begin
+            Character := InputString[i];
+            if (Character >= 'A') and (Character <= 'Z') then
+                AlphabetPart := AlphabetPart + Character
+            else
+                if (Character >= 'a') and (Character <= 'z') then
+                    AlphabetPart := AlphabetPart + Character;
+        end;
+        exit(AlphabetPart);
+    end;
+
     procedure GetBuyerDetails(Rec: Record "Sales Header"): JsonObject
     var
         cust: Record Customer;
@@ -272,17 +290,17 @@ codeunit 51520055 "Control Unit Signage CN"
     begin
 
         cust.Get(Rec."Bill-to Customer No.");
-        JO.Add('buyerName', cust.Name.ToLower());
+        JO.Add('buyerName', CopyStr(GetAlphabetPartOfString(cust.Name.ToLower()), 1, 30));
         IF cust.City = '' then
             JO.Add('buyerAddress', 'Blank Address') else
             JO.Add('buyerAddress', cust.City.ToLower());
-        if cust."Phone No." = '' then
-            JO.Add('buyerPhone', '+254000000000')
+        if (cust."Phone No." = '') or (StrLen(DELCHR(FORMAT(cust."Phone No."), '=', DELCHR(FORMAT(cust."Phone No."), '=', '1234567890'))) <> 10) then
+            JO.Add('buyerPhone', '0722000000')
         else
             JO.Add('buyerPhone', DELCHR(FORMAT(cust."Phone No."), '=', DELCHR(FORMAT(cust."Phone No."), '=', '1234567890')));
 
 
-        if cust."Telex Answer Back" <> '' then
+        if (cust."Telex Answer Back" <> '') AND (StrLen(cust."Telex Answer Back") = 11) then
             JO.Add('pinOfBuyer', cust."Telex Answer Back")
         else
             JO.Add('pinOfBuyer', 'P000000000P');
