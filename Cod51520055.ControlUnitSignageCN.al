@@ -672,7 +672,7 @@ codeunit 51520055 "Control Unit Signage CN"
         if (Desc <> 'Currency Rounding') then begin
             HSCodes.Reset();
             HSCodes.SetRange("Item No.", ItemNo);
-            HSCodes.SetRange("VAT Identifier");
+            HSCodes.SetRange("VAT Identifier", VATID);
             if HSCodes.FindFirst() then
                 exit(HSCodes.HSCode)
             else begin
