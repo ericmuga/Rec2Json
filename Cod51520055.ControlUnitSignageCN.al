@@ -8,6 +8,33 @@ codeunit 51520055 "Control Unit Signage CN"
     var
         Amount: Decimal;
 
+    procedure GetBuyerDetails(Rec: Record "Sales Cr.Memo Header"): JsonObject
+    var
+        cust: Record Customer;
+        JO: JsonObject;
+        TextContent: Text[250];
+    begin
+
+        cust.Get(Rec."Bill-to Customer No.");
+        JO.Add('buyerName', CopyStr(GetAlphabetPartOfString(cust.Name.ToLower()), 1, 30));
+        // IF cust.City = '' then
+        //     JO.Add('buyerAddress', 'Blank Address') else
+        //     JO.Add('buyerAddress', GetAlphabetPartOfString(cust.City.ToLower()));
+        // if (cust."Phone No." = '') or (StrLen(DELCHR(FORMAT(cust."Phone No."), '=', DELCHR(FORMAT(cust."Phone No."), '=', '1234567890'))) <> 10) then
+        //     JO.Add('buyerPhone', '0722000000')
+        // else
+        //     JO.Add('buyerPhone', DELCHR(FORMAT(cust."Phone No."), '=', DELCHR(FORMAT(cust."Phone No."), '=', '1234567890')));
+
+
+        if (cust."Telex Answer Back" <> '') AND (StrLen(cust."Telex Answer Back") = 11) then
+            JO.Add('pinOfBuyer', cust."Telex Answer Back")
+        else
+            JO.Add('pinOfBuyer', 'P000000000P');
+        exit(JO);
+
+
+    end;
+
     procedure SignInvoices(Rec: Record "Sales Cr.Memo Header")
     var
         Client: HttpClient;
@@ -109,6 +136,8 @@ codeunit 51520055 "Control Unit Signage CN"
             // RequestObject.Add('cashier', CashierName);
             RequestObject.Add('cashier', CopyStr(UserId, StrPos(UserId, '\') + 1, StrLen(UserId)));
             RequestObject.Add('items', GetLineItems2(Rec));
+            if (GetJsonTextField(GetBuyerDetails(Rec), 'pinOfBuyer') <> 'P000000000P') then
+                RequestObject.Add('buyer', GetBuyerDetails(Rec));
             IF NOT SINV.GET(Rec."Applies-to Doc. No.") then Error('The applied Invoice No. does not exist');
             RequestObject.Add('relevantNumber', SINV.CUInvoiceNo);
 

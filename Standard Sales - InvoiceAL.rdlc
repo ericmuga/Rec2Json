@@ -3166,7 +3166,13 @@
                   <Height>11pt</Height>
                   <Width>12.80583cm</Width>
                   <ZIndex>2</ZIndex>
+                  <Visibility>
+                    <Hidden>=if (First(Fields!SelltoCustNo_SalesInvHdr.Value, "DataSet_Result")="9000"</Hidden>
+                  </Visibility>
                   <Style>
+                    <Border>
+                      <Style>None</Style>
+                    </Border>
                     <VerticalAlign>Top</VerticalAlign>
                   </Style>
                 </Textbox>

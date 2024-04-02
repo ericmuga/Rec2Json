@@ -125,6 +125,7 @@ codeunit 51520051 "Control Unit Signage"
 
                 RequestObject.Add('lines', GetLinesMember());
                 RequestObject.Add('payment', GetPaymentArray(Rec));
+                // RequestObject.Add('buyer',GetBuyerDetails(Rec));/
                 RequestObject.Add('TraderSystemInvoiceNumber', InvOrCN + DELCHR(FORMAT(Rec."No."), '=', DELCHR(FORMAT(Rec."No."), '=', '1234567890')));
                 if Cust.Get("Sell-to Customer No.") then
                     if Cust.ExemptionNo <> '' then
@@ -137,6 +138,8 @@ codeunit 51520051 "Control Unit Signage"
                 RequestObject.Add('relevantNumber', SINV.CUInvoiceNo);
             end;
             RequestObject.WriteTo(TextContent);
+            if (GetJsonTextField(GetBuyerDetails(Rec), 'pinOfBuyer') <> 'P000000000P') then
+                RequestObject.Add('buyer', GetBuyerDetails(Rec));
             TextContent := TextContent.Replace(' ', '');
             Content.WriteFrom(TextContent);
             Content.GetHeaders(ContentHeaders);
@@ -449,7 +452,7 @@ codeunit 51520051 "Control Unit Signage"
     end;
 
 
-   
+
     procedure GetBuyerDetails(Rec: Record "Sales Header"): JsonObject
     var
         cust: Record Customer;
@@ -459,13 +462,13 @@ codeunit 51520051 "Control Unit Signage"
 
         cust.Get(Rec."Bill-to Customer No.");
         JO.Add('buyerName', CopyStr(GetAlphabetPartOfString(cust.Name.ToLower()), 1, 30));
-        IF cust.City = '' then
-            JO.Add('buyerAddress', 'Blank Address') else
-            JO.Add('buyerAddress', GetAlphabetPartOfString(cust.City.ToLower()));
-        if (cust."Phone No." = '') or (StrLen(DELCHR(FORMAT(cust."Phone No."), '=', DELCHR(FORMAT(cust."Phone No."), '=', '1234567890'))) <> 10) then
-            JO.Add('buyerPhone', '0722000000')
-        else
-            JO.Add('buyerPhone', DELCHR(FORMAT(cust."Phone No."), '=', DELCHR(FORMAT(cust."Phone No."), '=', '1234567890')));
+        // IF cust.City = '' then
+        //     JO.Add('buyerAddress', 'Blank Address') else
+        //     JO.Add('buyerAddress', GetAlphabetPartOfString(cust.City.ToLower()));
+        // if (cust."Phone No." = '') or (StrLen(DELCHR(FORMAT(cust."Phone No."), '=', DELCHR(FORMAT(cust."Phone No."), '=', '1234567890'))) <> 10) then
+        //     JO.Add('buyerPhone', '0722000000')
+        // else
+        //     JO.Add('buyerPhone', DELCHR(FORMAT(cust."Phone No."), '=', DELCHR(FORMAT(cust."Phone No."), '=', '1234567890')));
 
 
         if (cust."Telex Answer Back" <> '') AND (StrLen(cust."Telex Answer Back") = 11) then
