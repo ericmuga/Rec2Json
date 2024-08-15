@@ -39,8 +39,6 @@ tableextension 51520050 QRCodeExtension extends "Sales Header"
     }
 }
 
-
-///extend sales invoice header
 tableextension 51520051 QRCodeExtensionInv extends "Sales Invoice Header"
 {
     fields
@@ -88,7 +86,6 @@ tableextension 51520051 QRCodeExtensionInv extends "Sales Invoice Header"
     }
 }/// 
 
-
 tableextension 51520052 QRCodeExtensionCr extends "Sales Cr.Memo Header"
 {
     fields
@@ -131,7 +128,6 @@ tableextension 51520052 QRCodeExtensionCr extends "Sales Cr.Memo Header"
     }
 }/// 
 
-
 tableextension 51520053 Customer extends "Customer"
 {
     fields
@@ -142,19 +138,26 @@ tableextension 51520053 Customer extends "Customer"
             DataClassification = ToBeClassified;
         }
 
-        // field(50100;CustStatGrp;Text[100])
-        // {
-        //     Caption='Customer Stats. Group';
-        // }
-
-
 
     }
 
+}
 
-
+tableextension 51520056 WarehouseReceipt extends "Warehouse Receipt Header"
+{
+    fields
+    {
+        field(51520056; Status; Enum "Custom Approval Enum")
+        {
+            Caption = 'Status';
+            DataClassification = ToBeClassified;
+            Editable = false;
+        }
+    }
 
 }
+
+
 
 tableextension 51520054 Item extends "Item"
 {
@@ -190,7 +193,6 @@ tableextension 51520054 Item extends "Item"
 
     }
 }
-
 
 tableextension 51520055 CustomerLedgerEntryCUInvNo extends "Cust. Ledger Entry"
 {
@@ -827,10 +829,6 @@ pageextension 51520054 CustomerCard extends "Customer Card"
 
 }
 
-
-
-
-
 pageextension 51520055 PostedSalesInvoiceExtension extends "Posted Sales Invoice"
 {
 
@@ -1243,7 +1241,6 @@ pageextension 51520059 PostedCRMemoExtension extends "Posted Sales Credit Memo"
 
 }
 
-
 pageextension 51520060 PostedSalesINVExt extends "Posted Sales Invoices"
 {
 
@@ -1426,6 +1423,7 @@ pageextension 51520060 PostedSalesINVExt extends "Posted Sales Invoices"
     }
 }
 pageextension 51520061 PostedSalesCRMemos extends "Posted Sales Credit Memos"
+
 {
     layout
     {
@@ -1613,6 +1611,187 @@ pageextension 51520061 PostedSalesCRMemos extends "Posted Sales Credit Memos"
             }
         }
     }
+}
+
+
+pageextension 51520069 "WarehouseReceipts" extends "Warehouse Receipts"
+{
+
+    layout
+    {
+        // Add changes to page layout here
+        addafter("Assigned User ID")
+        {
+            field(Status; Status)
+            {
+                Caption = 'Status';
+                Editable = false;
+
+            }
+        }
+    }
+}
+pageextension 51520068 "WarehouseReceipt" extends "Warehouse Receipt"
+{
+
+    layout
+    {
+        // Add changes to page layout here
+        addafter("Assigned User ID")
+        {
+            field(Status; Status)
+            {
+                Caption = 'Status';
+                Editable = false;
+
+            }
+        }
+    }
+    actions
+    {
+        addafter("F&unctions")
+        {
+            group("Request Approval")
+            {
+                Caption = 'Request Approval';
+                Image = SendApprovalRequest;
+                action(SendApprovalRequest)
+                {
+                    ApplicationArea = Basic, Suite;
+                    Caption = 'Send A&pproval Request';
+                    Enabled = NOT OpenApprovalEntriesExist;
+                    Image = SendApprovalRequest;
+                    ToolTip = 'Request approval to change the record.';
+                    Promoted = true;
+                    PromotedCategory = Process;
+                    trigger OnAction()
+
+                    var
+                        CustomWorkflowMgmt: Codeunit "Custom Workflow Mgmt";
+                        RecRef: RecordRef;
+                    begin
+                        RecRef.GetTable(Rec);
+                        if CustomWorkflowMgmt.CheckApprovalsWorkflowEnabled(RecRef) then
+                            CustomWorkflowMgmt.OnSendWorkflowForApproval(RecRef);
+                    end;
+                }
+                action(CancelApprovalRequest)
+                {
+                    ApplicationArea = Basic, Suite;
+                    Caption = 'Cancel Approval Re&quest';
+                    Enabled = CanCancelApprovalForRecord;
+                    Image = CancelApprovalRequest;
+                    ToolTip = 'Cancel the approval request.';
+                    Promoted = true;
+                    PromotedCategory = Process;
+                    trigger OnAction()
+                    var
+                        CustomWorkflowMgmt: Codeunit "Custom Workflow Mgmt";
+                        RecRef: RecordRef;
+                    begin
+                        RecRef.GetTable(Rec);
+                        CustomWorkflowMgmt.OnCancelWorkflowForApproval(RecRef);
+                    end;
+                }
+            }
+
+
+            group("Approval Actions")
+            {
+                Caption = 'Approval';
+                action(Approve)
+                {
+                    ApplicationArea = All;
+                    Caption = 'Approve';
+                    Image = Approve;
+                    ToolTip = 'Approve the requested changes.';
+                    Promoted = true;
+                    PromotedCategory = New;
+                    Visible = OpenApprovalEntriesExistCurrUser;
+                    trigger OnAction()
+                    begin
+                        ApprovalsMgmt.ApproveRecordApprovalRequest(Rec.RecordId);
+                    end;
+                }
+                action(Reject)
+                {
+                    ApplicationArea = All;
+                    Caption = 'Reject';
+                    Image = Reject;
+                    ToolTip = 'Reject the approval request.';
+                    Visible = OpenApprovalEntriesExistCurrUser;
+                    Promoted = true;
+                    PromotedCategory = New;
+                    trigger OnAction()
+                    begin
+                        ApprovalsMgmt.RejectRecordApprovalRequest(Rec.RecordId);
+                    end;
+                }
+                action(Delegate)
+                {
+                    ApplicationArea = All;
+                    Caption = 'Delegate';
+                    Image = Delegate;
+                    ToolTip = 'Delegate the approval to a substitute approver.';
+                    Visible = OpenApprovalEntriesExistCurrUser;
+                    Promoted = true;
+                    PromotedCategory = New;
+                    trigger OnAction()
+
+                    begin
+                        ApprovalsMgmt.DelegateRecordApprovalRequest(Rec.RecordId);
+                    end;
+                }
+                action(Comment)
+                {
+                    ApplicationArea = All;
+                    Caption = 'Comments';
+                    Image = ViewComments;
+                    ToolTip = 'View or add comments for the record.';
+                    Visible = OpenApprovalEntriesExistCurrUser;
+                    Promoted = true;
+
+                    PromotedCategory = New;
+
+
+                    trigger OnAction()
+                    begin
+                        ApprovalsMgmt.GetApprovalComment(Rec);
+                    end;
+                }
+                action(Approvals)
+                {
+                    ApplicationArea = All;
+                    Caption = 'Approvals';
+                    Image = Approvals;
+                    ToolTip = 'View approval requests.';
+                    Promoted = true;
+                    PromotedCategory = New;
+                    Visible = HasApprovalEntries;
+                    trigger OnAction()
+                    begin
+                        ApprovalsMgmt.OpenApprovalEntriesPage(Rec.RecordId);
+                    end;
+                }
+            }
+
+
+        }
+    }
+    trigger OnAfterGetCurrRecord()
+    begin
+        OpenApprovalEntriesExistCurrUser := ApprovalsMgmt.HasOpenApprovalEntriesForCurrentUser(Rec.RecordId);
+        OpenApprovalEntriesExist := ApprovalsMgmt.HasOpenApprovalEntries(Rec.RecordId);
+        CanCancelApprovalForRecord := ApprovalsMgmt.CanCancelApprovalForRecord(Rec.RecordId);
+        HasApprovalEntries := ApprovalsMgmt.HasApprovalEntries(Rec.RecordId);
+    end;
+
+    var
+        OpenApprovalEntriesExistCurrUser: Boolean;
+        OpenApprovalEntriesExist: Boolean;
+        CanCancelApprovalForRecord: Boolean;
+        HasApprovalEntries: Boolean;
+        ApprovalsMgmt: Codeunit "Approvals Mgmt.";
 }
 
 
